@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
 using Dalamud.Hooking;
@@ -10,6 +12,7 @@ using Dalamud.Logging;
 using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -32,7 +35,10 @@ public unsafe class Plugin : IDalamudPlugin {
     private readonly WindowSystem windowSystem;
 
     private ExcelSheet<Title>? TitleSheet = null;
-    
+
+
+    private readonly Stopwatch runTime = Stopwatch.StartNew();
+    private static bool _updateRequested = true;
     
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
@@ -54,8 +60,7 @@ public unsafe class Plugin : IDalamudPlugin {
         updateNameplateHook?.Enable();
 
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
-        // pluginInterface.UiBuilder.Draw += UiBuilderOnDraw;
-        
+
         PluginService.Commands.AddHandler("/honorific", new CommandInfo(OnCommand) {
             HelpMessage = $"Open the {Name} config window.",
             ShowInHelp = true
@@ -133,11 +138,12 @@ public unsafe class Plugin : IDalamudPlugin {
         if (titlePrefix) namePlateInfo->Flags |= 0x1000000;
         if (isPrefix != titlePrefix) needsUpdate = true;
         
-        if ((nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
-            IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
-        }
-        
-        if (needsUpdate) {
+        if (needsUpdate || _updateRequested) {
+            _updateRequested = false;
+            if ((nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
+                IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
+            }
+
             // TODO: maybe find a way to improve this
             var unitManager = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->RaptureAtkUnitManager;
             var addon = (AddonNamePlate*)unitManager->GetAddonByName("NamePlate");
@@ -151,10 +157,29 @@ public unsafe class Plugin : IDalamudPlugin {
     
     public static Dictionary<(string, uint), CustomTitle> IpcAssignedTitles { get; } = new();
 
+    public CustomTitle GetOriginalTitle(PlayerCharacter playerCharacter) {
+        var title = new CustomTitle();
+        var character = (Character*) playerCharacter.Address;
+        var titleId = (ushort)Marshal.ReadInt16(playerCharacter.Address, 0x1AF8);
+        if (titleId == 0) return title;
+        var titleData = TitleSheet!.GetRow(titleId);
+        if (titleData == null) return title;
+        var genderedTitle = character->GameObject.Gender == 0 ? titleData.Masculine : titleData.Feminine;
+        title.Title = genderedTitle.ToDalamudString().TextValue;
+        title.IsPrefix = titleData.IsPrefix;
+        return title;
+    }
+    
     public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title) {
-        title = null;
+        if (isDisposing || runTime.ElapsedMilliseconds < 1000) {
+            title = GetOriginalTitle(playerCharacter);
+            return true;
+        }
         if (IpcAssignedTitles.TryGetValue((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), out title)) return true;
-        if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) return false;
+        if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+            title = GetOriginalTitle(playerCharacter);
+            return true;
+        }
         
         foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled)) {
             switch (cTitle.TitleCondition) {
@@ -182,11 +207,24 @@ public unsafe class Plugin : IDalamudPlugin {
             return true;
         }
         
+        title = GetOriginalTitle(playerCharacter);
         return true;
     }
-    
+
+
+    private bool isDisposing = false;
+
+    public static void RequestUpdate() {
+        _updateRequested = true;
+    }
     
     public void Dispose() {
+        isDisposing = true;
+        if (PluginService.ClientState.LocalPlayer != null) {
+            var title = GetOriginalTitle(PluginService.ClientState.LocalPlayer);
+            IpcProvider.ChangedLocalCharacterTitle(title.Title ?? string.Empty, title.IsPrefix);
+        }
+        
         IpcProvider.DeInit();
         updateNameplateHook?.Disable();
         updateNameplateHook?.Dispose();

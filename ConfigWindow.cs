@@ -32,12 +32,9 @@ public class ConfigWindow : Window {
         Size = ImGuiHelpers.ScaledVector2(800, 500);
         SizeCondition = ImGuiCond.Once;
     }
-
-
-    private Vector2 IconButtonSize = new Vector2(16);
-
-    private float checkboxSize = 36;
     
+    private Vector2 iconButtonSize = new(16);
+    private float checkboxSize = 36;
 
     public void DrawCharacterList() {
 
@@ -49,24 +46,12 @@ public class ConfigWindow : Window {
             ImGui.Separator();
 
             foreach (var (name, characterConfig) in characters.ToArray()) {
-
-                if (Plugin.IpcAssignedTitles.ContainsKey((name, worldId))) {
-                    if (selectedCharacter == characterConfig) selectedCharacter = null;
-                    ImGui.BeginGroup();
-                    ImGui.TextDisabled($"{name}");
-                    ImGui.SameLine();
-                    ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y));
-                    ImGui.EndGroup();
-                    if (ImGui.IsItemHovered()) {
-                        ImGui.SetTooltip($"{name}'s title has been assigned by another plugin.");
-                    }
-                } else {
-                    if (ImGui.Selectable($"{name}##{world.Name.RawString}", selectedCharacter == characterConfig)) {
-                        selectedCharacter = characterConfig;
-                    }
+                if (ImGui.Selectable($"{name}##{world.Name.RawString}", selectedCharacter == characterConfig)) {
+                    selectedCharacter = characterConfig;
+                    selectedName = name;
+                    selectedWorld = world.RowId;
                 }
-
-
+                
                 if (ImGui.BeginPopupContextItem()) {
                     if (ImGui.Selectable($"Remove '{name} @ {world.Name.RawString}' from Config")) {
                         characters.Remove(name);
@@ -88,11 +73,14 @@ public class ConfigWindow : Window {
     }
 
     private CharacterConfig? selectedCharacter;
+    private string selectedName = string.Empty;
+    private uint selectedWorld = 0;
 
     public override void Draw() {
+        var modified = false;
         ImGui.BeginGroup();
         {
-            if (ImGui.BeginChild("character_select", ImGuiHelpers.ScaledVector2(240, 0) - IconButtonSize with { X = 0 }, true)) {
+            if (ImGui.BeginChild("character_select", ImGuiHelpers.ScaledVector2(240, 0) - iconButtonSize with { X = 0 }, true)) {
                 DrawCharacterList();
             }
             ImGui.EndChild();
@@ -104,7 +92,7 @@ public class ConfigWindow : Window {
                         config.TryAddCharacter(PluginService.ClientState.LocalPlayer.Name.TextValue, PluginService.ClientState.LocalPlayer.HomeWorld.Id);
                     }
                 }
-                IconButtonSize = ImGui.GetItemRectSize() + ImGui.GetStyle().ItemSpacing;
+                iconButtonSize = ImGui.GetItemRectSize() + ImGui.GetStyle().ItemSpacing;
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add current character");
                 
                 ImGui.SameLine();
@@ -121,6 +109,36 @@ public class ConfigWindow : Window {
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
+
+                if (Plugin.IpcAssignedTitles.TryGetValue((selectedName, selectedWorld), out var title)) {
+
+                    ImGui.Text("This character's title is currently assigned by another plugin.");
+                    
+                    ImGui.BeginDisabled();
+                    
+                    if (ImGui.BeginTable("TitlesTable", 4)) {
+                        ImGui.TableSetupColumn("##enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
+                        ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
+                        ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                        ImGui.TableSetupColumn("##condition", ImGuiTableColumnFlags.WidthStretch);
+                        ImGui.TableHeadersRow();
+
+
+                        ImGui.TableNextColumn();
+                        DrawTitleCommon(title);
+
+                        ImGui.EndTable();
+                    }
+
+
+                   
+                    
+                    ImGui.EndDisabled();
+                    
+
+                    return;
+                }
+                
                 
                 
                 if (ImGui.Button("Export Titles to Clipboard")) {
@@ -160,16 +178,23 @@ public class ConfigWindow : Window {
                     }
                 }
 
-                DrawCharacterView(selectedCharacter);
+                modified |= DrawCharacterView(selectedCharacter);
             }
             
         }
         ImGui.EndChild();
 
+
+        if (modified) {
+            Plugin.RequestUpdate();
+        }
+        
+
     }
 
-    private void DrawCharacterView(CharacterConfig? characterConfig) {
-        if (characterConfig == null) return;
+    private bool DrawCharacterView(CharacterConfig? characterConfig) {
+        var modified = false;
+        if (characterConfig == null) return modified;
         
         if (ImGui.BeginTable("TitlesTable", 4)) {
             ImGui.TableSetupColumn("Enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
@@ -222,6 +247,7 @@ public class ConfigWindow : Window {
                 ImGui.PopFont();
                 ImGui.PopStyleVar();
                 if (ImGui.Checkbox("##enable", ref title.Enabled)) {
+                    modified = true;
                     if (title.Enabled) {
                         foreach (var t in characterConfig.CustomTitles.Where (t => t.TitleCondition == title.TitleCondition && t.ConditionParam0 == title.ConditionParam0)) {
                             t.Enabled = false;
@@ -239,6 +265,7 @@ public class ConfigWindow : Window {
                             if (title.TitleCondition != v) {
                                 title.TitleCondition = v;
                                 title.ConditionParam0 = 0;
+                                modified = true;
                             }
                         }
                     }
@@ -260,6 +287,7 @@ public class ConfigWindow : Window {
                                     if (cj.RowId == 0) continue;
                                     if (ImGui.Selectable(cj.Abbreviation.RawString, title.ConditionParam0 == cj.RowId)) {
                                         title.ConditionParam0 = (int)cj.RowId;
+                                        modified = true;
                                     }
                                 }
                                 ImGui.EndCombo();
@@ -278,6 +306,7 @@ public class ConfigWindow : Window {
                                 if (v == ClassJobRole.None) continue;
                                 if (ImGui.Selectable(v.GetAttribute<DescriptionAttribute>()?.Description ?? $"{v}", v == selected)) {
                                     title.ConditionParam0 = (int) v;
+                                    modified = true;
                                 }
                             }
                             ImGui.EndCombo();
@@ -286,14 +315,7 @@ public class ConfigWindow : Window {
                         break;
                     }
                 }
-                
-                
-                
-                
-                
-                
-                
-                
+
                 ImGui.PopID();
             }
 
@@ -324,10 +346,10 @@ public class ConfigWindow : Window {
             ImGui.Dummy(new Vector2(checkboxSize));
             ImGui.SameLine();
             ImGui.PopStyleVar();
-            ImGui.Checkbox("##enable", ref characterConfig.DefaultTitle.Enabled);
+            modified |= ImGui.Checkbox("##enable", ref characterConfig.DefaultTitle.Enabled);
             
             checkboxSize = ImGui.GetItemRectSize().X;
-            DrawTitleCommon(characterConfig.DefaultTitle);
+            modified |= DrawTitleCommon(characterConfig.DefaultTitle);
             
             ImGui.TextDisabled("Default Title");
             
@@ -335,8 +357,9 @@ public class ConfigWindow : Window {
             
             ImGui.EndTable();
         }
-        
 
+
+        return modified;
     }
 
     private bool DrawTitleCommon(CustomTitle title) {
