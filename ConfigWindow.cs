@@ -263,7 +263,7 @@ public class ConfigWindow : Window {
                     case TitleConditionType.JobRole: {
                         var selected = (ClassJobRole)title.ConditionParam0;
                         ImGui.SameLine();
-                        ImGui.SetNextItemWidth(250);
+                        ImGui.SetNextItemWidth(-1);
                         if (ImGui.BeginCombo("##conditionRole", selected.GetAttribute<DescriptionAttribute>()?.Description ?? $"{selected}")) {
                             foreach (var v in Enum.GetValues<ClassJobRole>()) {
                                 if (v == ClassJobRole.None) continue;
@@ -340,6 +340,7 @@ public class ConfigWindow : Window {
         
         ImGui.TableNextColumn();
 
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
         modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
 
         ImGui.TableNextColumn();
