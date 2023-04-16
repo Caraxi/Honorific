@@ -156,8 +156,11 @@ public unsafe class Plugin : IDalamudPlugin {
         if (IpcAssignedTitles.TryGetValue((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), out title)) return true;
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) return false;
         
-        foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled && t.TitleCondition != TitleConditionType.None)) {
+        foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled)) {
             switch (cTitle.TitleCondition) {
+                case TitleConditionType.None:
+                    title = cTitle;
+                    return true;
                 case TitleConditionType.ClassJob:
                     if (cTitle.ConditionParam0 == playerCharacter.ClassJob.Id) {
                         title = cTitle;

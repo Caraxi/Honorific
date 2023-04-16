@@ -221,14 +221,20 @@ public class ConfigWindow : Window {
                 ImGui.SameLine();
                 ImGui.PopFont();
                 ImGui.PopStyleVar();
-                ImGui.Checkbox("##enable", ref title.Enabled);
+                if (ImGui.Checkbox("##enable", ref title.Enabled)) {
+                    if (title.Enabled) {
+                        foreach (var t in characterConfig.CustomTitles.Where (t => t.TitleCondition == title.TitleCondition && t.ConditionParam0 == title.ConditionParam0)) {
+                            t.Enabled = false;
+                        }
+                        title.Enabled = true;
+                    }
+                }
                 
                 DrawTitleCommon(title);
 
                 ImGui.SetNextItemWidth(150);
                 if (ImGui.BeginCombo("##conditionType", title.TitleCondition.GetAttribute<DescriptionAttribute>()?.Description ?? $"{title.TitleCondition}")) {
                     foreach (var v in Enum.GetValues<TitleConditionType>()) {
-                        if (v == TitleConditionType.None) continue;
                         if (ImGui.Selectable(v.GetAttribute<DescriptionAttribute>()?.Description ?? $"{v}", v == title.TitleCondition)) {
                             if (title.TitleCondition != v) {
                                 title.TitleCondition = v;
@@ -240,6 +246,9 @@ public class ConfigWindow : Window {
                 }
 
                 switch (title.TitleCondition) {
+                    case TitleConditionType.None: {
+                        break;
+                    }
                     case TitleConditionType.ClassJob: {
                         var sheet = PluginService.Data.GetExcelSheet<ClassJob>();
                         if (sheet != null) {
