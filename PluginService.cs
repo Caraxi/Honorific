@@ -1,5 +1,7 @@
 ﻿using Dalamud.Data;
+using Dalamud.Game;
 using Dalamud.Game.ClientState;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects;
 using Dalamud.Game.Command;
 using Dalamud.IoC;
@@ -14,4 +16,6 @@ public class PluginService {
     [PluginService] public static DataManager Data { get; private set; } = null!;
     [PluginService] public static ObjectTable Objects { get; private set; } = null!;
     [PluginService] public static TargetManager Targets { get; private set; } = null!;
+    [PluginService] public static Framework Framework { get; private set; } = null!;
+    [PluginService] public static Condition Condition { get; private set; } = null!;
 }

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Dalamud.Game.ClientState;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
 using Dalamud.Hooking;
@@ -39,6 +41,7 @@ public unsafe class Plugin : IDalamudPlugin {
 
     private readonly Stopwatch runTime = Stopwatch.StartNew();
     private static bool _updateRequested = true;
+    private readonly Stopwatch lastFullUpdate = Stopwatch.StartNew();
     
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
@@ -65,7 +68,7 @@ public unsafe class Plugin : IDalamudPlugin {
             HelpMessage = $"Open the {Name} config window.",
             ShowInHelp = true
         });
-        
+        PluginService.Framework.Update += OnFrameworkUpdate;
         IpcProvider.Init(this);
     }
 
@@ -88,8 +91,35 @@ public unsafe class Plugin : IDalamudPlugin {
         return r;
     }
 
+
+    private void ForceUpdateNamePlateAddon() {
+        // TODO: maybe find a way to improve this
+        var unitManager = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->RaptureAtkUnitManager;
+        var addon = (AddonNamePlate*)unitManager->GetAddonByName("NamePlate");
+        if (addon == null) return;
+        PluginLog.Verbose($"Force Full Update");
+        addon->DoFullUpdate = 1;
+        var arrayDataHolder = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->AtkModule.AtkArrayDataHolder;
+        var updateFunction = (delegate* unmanaged<RaptureAtkUnitManager*, ushort, NumberArrayData**, StringArrayData**, byte, void>)unitManager->AtkUnitManager.AtkEventListener.vfunc[11];
+        updateFunction(unitManager, addon->AtkUnitBase.ID, arrayDataHolder->NumberArrays, arrayDataHolder->StringArrays, 1);
+    }
+    
+    private void OnFrameworkUpdate(Dalamud.Game.Framework framework) {
+        if (_updateRequested && lastFullUpdate.ElapsedMilliseconds > 1000) {
+            lastFullUpdate.Restart();
+            if (PluginService.Condition[ConditionFlag.BetweenAreas] || 
+                PluginService.Condition[ConditionFlag.BetweenAreas51] || 
+                PluginService.Condition[ConditionFlag.LoggingOut] || 
+                PluginService.Condition[ConditionFlag.OccupiedInCutSceneEvent] || 
+                PluginService.Condition[ConditionFlag.WatchingCutscene] || 
+                PluginService.Condition[ConditionFlag.WatchingCutscene78]) return;
+            
+            _updateRequested = false;
+            ForceUpdateNamePlateAddon();
+        }
+    }
+
     public void AfterNameplateUpdate(RaptureAtkModule.NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
-        var needsUpdate = false;
         var gameObject = &battleChara->Character.GameObject;
               
         if (gameObject->ObjectKind != 1 || gameObject->SubKind != 4) return;
@@ -98,6 +128,7 @@ public unsafe class Plugin : IDalamudPlugin {
 
         string titleText;
         bool titlePrefix;
+        var titleChanged = false;
 
         if (!TryGetTitle(player, out var title) || title == null) {
             var assignedTitleId = (short)namePlateInfo->Flags;
@@ -123,35 +154,25 @@ public unsafe class Plugin : IDalamudPlugin {
         }
         
         if (namePlateInfo->Title.ToString() != titleText) {
-            needsUpdate = true;
+            _updateRequested = true;
             namePlateInfo->Title.SetString(titleText);
+            titleChanged = true;
         }
 
         var displayTitle = string.IsNullOrEmpty(titleText) ? string.Empty : $"《{titleText}》";
         if (namePlateInfo->DisplayTitle.ToString() != displayTitle) {
-            needsUpdate = true;
+            _updateRequested = true;
             namePlateInfo->DisplayTitle.SetString(displayTitle);
+            titleChanged = true;
         }
         
         var isPrefix = (namePlateInfo->Flags & 0x1000000) == 0x1000000;
         namePlateInfo->Flags &= ~0x1000000;
         if (titlePrefix) namePlateInfo->Flags |= 0x1000000;
-        if (isPrefix != titlePrefix) needsUpdate = true;
+        if (isPrefix != titlePrefix) titleChanged = _updateRequested = true;
         
-        if (needsUpdate || _updateRequested) {
-            _updateRequested = false;
-            if ((nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
-                IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
-            }
-
-            // TODO: maybe find a way to improve this
-            var unitManager = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->RaptureAtkUnitManager;
-            var addon = (AddonNamePlate*)unitManager->GetAddonByName("NamePlate");
-            if (addon == null) return;
-            addon->DoFullUpdate = 1;
-            var arrayDataHolder = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->AtkModule.AtkArrayDataHolder;
-            var updateFunction = (delegate* unmanaged<RaptureAtkUnitManager*, ushort, NumberArrayData**, StringArrayData**, byte, void>)unitManager->AtkUnitManager.AtkEventListener.vfunc[11];
-            updateFunction(unitManager, addon->AtkUnitBase.ID, arrayDataHolder->NumberArrays, arrayDataHolder->StringArrays, 1);
+        if (titleChanged && (nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
+            IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
         }
     }
     
@@ -175,13 +196,13 @@ public unsafe class Plugin : IDalamudPlugin {
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
-        if (IpcAssignedTitles.TryGetValue((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), out title)) return true;
+        if (IpcAssignedTitles.TryGetValue((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), out title) && title.IsValid()) return true;
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
         
-        foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled)) {
+        foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled && t.IsValid())) {
             switch (cTitle.TitleCondition) {
                 case TitleConditionType.None:
                     title = cTitle;
@@ -219,10 +240,14 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     public void Dispose() {
+        lastFullUpdate.Stop();
+        lastFullUpdate.Reset();
+        PluginLog.Verbose($"Dispose");
         isDisposing = true;
         if (PluginService.ClientState.LocalPlayer != null) {
             var title = GetOriginalTitle(PluginService.ClientState.LocalPlayer);
             IpcProvider.ChangedLocalCharacterTitle(title.Title ?? string.Empty, title.IsPrefix);
+            ForceUpdateNamePlateAddon();
         }
         
         IpcProvider.DeInit();
@@ -234,5 +259,6 @@ public unsafe class Plugin : IDalamudPlugin {
         windowSystem.RemoveAllWindows();
         
         PluginService.PluginInterface.SavePluginConfig(Config);
+        PluginService.Framework.Update -= OnFrameworkUpdate;
     }
 }
