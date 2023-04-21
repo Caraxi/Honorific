@@ -63,6 +63,7 @@ public unsafe class Plugin : IDalamudPlugin {
         updateNameplateHook?.Enable();
 
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
+        pluginInterface.UiBuilder.OpenConfigUi += () => OnCommand(string.Empty, string.Empty);
 
         PluginService.Commands.AddHandler("/honorific", new CommandInfo(OnCommand) {
             HelpMessage = $"Open the {Name} config window.",
