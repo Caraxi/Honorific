@@ -79,6 +79,7 @@ public unsafe class Plugin : IDalamudPlugin {
     
     public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
         var r = updateNameplateHook!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, battleChara, numArrayIndex, stringArrayIndex);
+        if (PluginService.ClientState.IsPvPExcludingDen) return r;
         
         try {
             var gameObject = &battleChara->Character.GameObject;
