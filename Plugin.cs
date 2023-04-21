@@ -115,6 +115,7 @@ public unsafe class Plugin : IDalamudPlugin {
                 PluginService.Condition[ConditionFlag.WatchingCutscene78]) return;
             
             _updateRequested = false;
+            if (PluginService.ClientState.IsPvPExcludingDen) return;
             ForceUpdateNamePlateAddon();
         }
     }
