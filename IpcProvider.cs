@@ -8,7 +8,7 @@ namespace Honorific;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class IpcProvider {
     public const uint MajorVersion = 1;
-    public const uint MinorVersion = 0;
+    public const uint MinorVersion = 1;
 
     public const string NameSpace = "Honorific";
     
@@ -19,6 +19,8 @@ public static class IpcProvider {
     private static ICallGateProvider<(string, bool)>? GetLocalCharacterTitle;
     private static ICallGateProvider<Character, object>? ClearCharacterTitle;
     private static ICallGateProvider<string, bool, object>? LocalCharacterTitleChanged;
+    private static ICallGateProvider<object>? Ready;
+    private static ICallGateProvider<object>? Disposing;
 
     internal static void Init(Plugin plugin) { 
         ApiVersion = PluginService.PluginInterface.GetIpcProvider<(uint, uint)>($"{NameSpace}.{nameof(ApiVersion)}");
@@ -32,7 +34,6 @@ public static class IpcProvider {
                 Title = title,
                 IsPrefix = isPrefix
             });
-            Plugin.RequestUpdate();
         });
         
         GetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, (string, bool)>($"{NameSpace}.{nameof(GetCharacterTitle)}");
@@ -57,10 +58,20 @@ public static class IpcProvider {
         });
 
         LocalCharacterTitleChanged = PluginService.PluginInterface.GetIpcProvider<string, bool, object>($"{NameSpace}.{nameof(LocalCharacterTitleChanged)}");
+        Ready = PluginService.PluginInterface.GetIpcProvider<object>($"{NameSpace}.{nameof(Ready)}");
+        Disposing = PluginService.PluginInterface.GetIpcProvider<object>($"{NameSpace}.{nameof(Disposing)}");
     }
 
     internal static void ChangedLocalCharacterTitle(string title, bool isPrefix) {
         LocalCharacterTitleChanged?.SendMessage(title, isPrefix);
+    }
+
+    internal static void NotifyReady() {
+        Ready?.SendMessage();
+    }
+
+    internal static void NotifyDisposing() {
+        Disposing?.SendMessage();
     }
 
     internal static void DeInit() {
@@ -69,5 +80,8 @@ public static class IpcProvider {
         ClearCharacterTitle?.UnregisterAction();
         GetCharacterTitle?.UnregisterFunc();
         GetLocalCharacterTitle?.UnregisterFunc();
+        LocalCharacterTitleChanged = null;
+        Ready = null;
+        Disposing = null;
     }
 }

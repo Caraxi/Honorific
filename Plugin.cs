@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
@@ -15,7 +14,6 @@ using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
@@ -27,7 +25,7 @@ namespace Honorific;
 public unsafe class Plugin : IDalamudPlugin {
     public string Name => "Honorific";
     
-    public PluginConfig Config { get; private set; }
+    public PluginConfig Config { get; }
     
     [Signature("40 53 55 56 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
     private Hook<UpdateNameplateDelegate>? updateNameplateHook;
@@ -36,18 +34,17 @@ public unsafe class Plugin : IDalamudPlugin {
     private readonly ConfigWindow configWindow;
     private readonly WindowSystem windowSystem;
 
-    private ExcelSheet<Title>? TitleSheet = null;
+    private readonly ExcelSheet<Title>? titleSheet;
 
 
     private readonly Stopwatch runTime = Stopwatch.StartNew();
-    private static bool _updateRequested = true;
-    private readonly Stopwatch lastFullUpdate = Stopwatch.StartNew();
+    internal static bool IsDebug;
     
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
 
-        TitleSheet = PluginService.Data.GetExcelSheet<Title>();
-        if (TitleSheet == null) throw new Exception("Failed to load ExcelSheet<Title>");
+        titleSheet = PluginService.Data.GetExcelSheet<Title>();
+        if (titleSheet == null) throw new Exception("Failed to load ExcelSheet<Title>");
         
         Config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
 
@@ -69,18 +66,28 @@ public unsafe class Plugin : IDalamudPlugin {
             HelpMessage = $"Open the {Name} config window.",
             ShowInHelp = true
         });
-        PluginService.Framework.Update += OnFrameworkUpdate;
         IpcProvider.Init(this);
+        IpcProvider.NotifyReady();
     }
 
     private void OnCommand(string command, string args) {
+        if (args == "enableDebug") {
+            IsDebug = true;
+            return;
+        }
         configWindow.IsOpen = !configWindow.IsOpen;
     }
     
     public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
         var r = updateNameplateHook!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, battleChara, numArrayIndex, stringArrayIndex);
         if (PluginService.ClientState.IsPvPExcludingDen) return r;
-        
+        if (PluginService.Condition[ConditionFlag.BetweenAreas] || 
+            PluginService.Condition[ConditionFlag.BetweenAreas51] || 
+            PluginService.Condition[ConditionFlag.LoggingOut] || 
+            PluginService.Condition[ConditionFlag.OccupiedInCutSceneEvent] || 
+            PluginService.Condition[ConditionFlag.WatchingCutscene] || 
+            PluginService.Condition[ConditionFlag.WatchingCutscene78]) return r;
+
         try {
             var gameObject = &battleChara->Character.GameObject;
             if (gameObject->ObjectKind == 1 && gameObject->SubKind == 4) {
@@ -91,35 +98,6 @@ public unsafe class Plugin : IDalamudPlugin {
         }
 
         return r;
-    }
-
-
-    private void ForceUpdateNamePlateAddon() {
-        // TODO: maybe find a way to improve this
-        var unitManager = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->RaptureAtkUnitManager;
-        var addon = (AddonNamePlate*)unitManager->GetAddonByName("NamePlate");
-        if (addon == null) return;
-        PluginLog.Verbose($"Force Full Update");
-        addon->DoFullUpdate = 1;
-        var arrayDataHolder = &Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->AtkModule.AtkArrayDataHolder;
-        var updateFunction = (delegate* unmanaged<RaptureAtkUnitManager*, ushort, NumberArrayData**, StringArrayData**, byte, void>)unitManager->AtkUnitManager.AtkEventListener.vfunc[11];
-        updateFunction(unitManager, addon->AtkUnitBase.ID, arrayDataHolder->NumberArrays, arrayDataHolder->StringArrays, 1);
-    }
-    
-    private void OnFrameworkUpdate(Dalamud.Game.Framework framework) {
-        if (_updateRequested && lastFullUpdate.ElapsedMilliseconds > 1000) {
-            lastFullUpdate.Restart();
-            if (PluginService.Condition[ConditionFlag.BetweenAreas] || 
-                PluginService.Condition[ConditionFlag.BetweenAreas51] || 
-                PluginService.Condition[ConditionFlag.LoggingOut] || 
-                PluginService.Condition[ConditionFlag.OccupiedInCutSceneEvent] || 
-                PluginService.Condition[ConditionFlag.WatchingCutscene] || 
-                PluginService.Condition[ConditionFlag.WatchingCutscene78]) return;
-            
-            _updateRequested = false;
-            if (PluginService.ClientState.IsPvPExcludingDen) return;
-            ForceUpdateNamePlateAddon();
-        }
     }
 
     public void AfterNameplateUpdate(RaptureAtkModule.NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
@@ -140,7 +118,7 @@ public unsafe class Plugin : IDalamudPlugin {
                 titleText = string.Empty;
                 titlePrefix = false;
             } else {
-                var titleData = TitleSheet!.GetRow((uint)assignedTitleId);
+                var titleData = titleSheet!.GetRow((uint)assignedTitleId);
                 if (titleData == null) {
                     // Uh... ?
                     titleText = string.Empty;
@@ -157,14 +135,14 @@ public unsafe class Plugin : IDalamudPlugin {
         }
         
         if (namePlateInfo->Title.ToString() != titleText) {
-            _updateRequested = true;
+            PluginLog.Verbose($"Change '{player.Name.TextValue}' title: <{titleText}> (was <{namePlateInfo->Title.ToString()}>)");
             namePlateInfo->Title.SetString(titleText);
             titleChanged = true;
         }
 
         var displayTitle = string.IsNullOrEmpty(titleText) ? string.Empty : $"《{titleText}》";
         if (namePlateInfo->DisplayTitle.ToString() != displayTitle) {
-            _updateRequested = true;
+            PluginLog.Verbose($"Change '{player.Name.TextValue}' display title: <{displayTitle}> (was <{namePlateInfo->DisplayTitle.ToString()}>");
             namePlateInfo->DisplayTitle.SetString(displayTitle);
             titleChanged = true;
         }
@@ -172,7 +150,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var isPrefix = (namePlateInfo->Flags & 0x1000000) == 0x1000000;
         namePlateInfo->Flags &= ~0x1000000;
         if (titlePrefix) namePlateInfo->Flags |= 0x1000000;
-        if (isPrefix != titlePrefix) titleChanged = _updateRequested = true;
+        if (isPrefix != titlePrefix) titleChanged = true;
         
         if (titleChanged && (nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
             IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
@@ -186,7 +164,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var character = (Character*) playerCharacter.Address;
         var titleId = (ushort)Marshal.ReadInt16(playerCharacter.Address, 0x1AF8);
         if (titleId == 0) return title;
-        var titleData = TitleSheet!.GetRow(titleId);
+        var titleData = titleSheet!.GetRow(titleId);
         if (titleData == null) return title;
         var genderedTitle = character->GameObject.Gender == 0 ? titleData.Masculine : titleData.Feminine;
         title.Title = genderedTitle.ToDalamudString().TextValue;
@@ -236,23 +214,12 @@ public unsafe class Plugin : IDalamudPlugin {
     }
 
 
-    private bool isDisposing = false;
+    private bool isDisposing;
 
-    public static void RequestUpdate() {
-        _updateRequested = true;
-    }
-    
     public void Dispose() {
-        lastFullUpdate.Stop();
-        lastFullUpdate.Reset();
+        IpcProvider.NotifyDisposing();
         PluginLog.Verbose($"Dispose");
         isDisposing = true;
-        if (PluginService.ClientState.LocalPlayer != null) {
-            var title = GetOriginalTitle(PluginService.ClientState.LocalPlayer);
-            IpcProvider.ChangedLocalCharacterTitle(title.Title ?? string.Empty, title.IsPrefix);
-            ForceUpdateNamePlateAddon();
-        }
-        
         IpcProvider.DeInit();
         updateNameplateHook?.Disable();
         updateNameplateHook?.Dispose();
@@ -262,6 +229,5 @@ public unsafe class Plugin : IDalamudPlugin {
         windowSystem.RemoveAllWindows();
         
         PluginService.PluginInterface.SavePluginConfig(Config);
-        PluginService.Framework.Update -= OnFrameworkUpdate;
     }
 }
