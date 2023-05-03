@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
 using Dalamud.Logging;
@@ -14,6 +15,7 @@ using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
@@ -28,18 +30,23 @@ public unsafe class Plugin : IDalamudPlugin {
     public PluginConfig Config { get; }
     
     [Signature("40 53 55 56 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
-    private Hook<UpdateNameplateDelegate>? updateNameplateHook;
+    private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
+    
+    [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 74 24 ??", DetourName = nameof(UpdateNameplateNpcDetour))]
+    private Hook<UpdateNameplateNpcDelegate>? updateNameplateHookNpc;
+
     private delegate void* UpdateNameplateDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex);
+    private delegate void* UpdateNameplateNpcDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex);
     
     private readonly ConfigWindow configWindow;
     private readonly WindowSystem windowSystem;
 
     private readonly ExcelSheet<Title>? titleSheet;
-
-
+    
     private readonly Stopwatch runTime = Stopwatch.StartNew();
     internal static bool IsDebug;
-    
+
+    public Dictionary<ulong, uint> ModifiedNamePlates = new();
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
 
@@ -49,7 +56,7 @@ public unsafe class Plugin : IDalamudPlugin {
         Config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
 
         windowSystem = new WindowSystem(Assembly.GetExecutingAssembly().FullName);
-        configWindow = new ConfigWindow($"{Name} | Config", Config) {
+        configWindow = new ConfigWindow($"{Name} | Config", this, Config) {
             #if DEBUG
             IsOpen = true
             #endif
@@ -58,6 +65,7 @@ public unsafe class Plugin : IDalamudPlugin {
         
         SignatureHelper.Initialise(this);
         updateNameplateHook?.Enable();
+        updateNameplateHookNpc?.Enable();
 
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
         pluginInterface.UiBuilder.OpenConfigUi += () => OnCommand(string.Empty, string.Empty);
@@ -68,6 +76,12 @@ public unsafe class Plugin : IDalamudPlugin {
         });
         IpcProvider.Init(this);
         IpcProvider.NotifyReady();
+
+        #if DEBUG
+        IsDebug = true;
+        #endif
+
+        PluginService.Framework.Update += PerformanceMonitors.LogFramePerformance;
     }
 
     private void OnCommand(string command, string args) {
@@ -79,16 +93,21 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
-        var r = updateNameplateHook!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, battleChara, numArrayIndex, stringArrayIndex);
-        if (PluginService.ClientState.IsPvPExcludingDen) return r;
-        if (PluginService.Condition[ConditionFlag.BetweenAreas] || 
-            PluginService.Condition[ConditionFlag.BetweenAreas51] || 
-            PluginService.Condition[ConditionFlag.LoggingOut] || 
-            PluginService.Condition[ConditionFlag.OccupiedInCutSceneEvent] || 
-            PluginService.Condition[ConditionFlag.WatchingCutscene] || 
-            PluginService.Condition[ConditionFlag.WatchingCutscene78]) return r;
-
         try {
+            CleanupNamePlate(namePlateInfo);
+        } catch (Exception ex) {
+            PluginLog.LogError(ex, "Error in Cleanup of BattleChara Nameplate");
+        }
+        var r = updateNameplateHook!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, battleChara, numArrayIndex, stringArrayIndex);
+        try {
+            if (PluginService.ClientState.IsPvPExcludingDen) return r;
+            if (PluginService.Condition[ConditionFlag.BetweenAreas] || 
+                PluginService.Condition[ConditionFlag.BetweenAreas51] || 
+                PluginService.Condition[ConditionFlag.LoggingOut] || 
+                PluginService.Condition[ConditionFlag.OccupiedInCutSceneEvent] || 
+                PluginService.Condition[ConditionFlag.WatchingCutscene] || 
+                PluginService.Condition[ConditionFlag.WatchingCutscene78]) return r;
+            
             var gameObject = &battleChara->Character.GameObject;
             if (gameObject->ObjectKind == 1 && gameObject->SubKind == 4) {
                 AfterNameplateUpdate(namePlateInfo, battleChara);
@@ -100,60 +119,65 @@ public unsafe class Plugin : IDalamudPlugin {
         return r;
     }
 
+    private void CleanupNamePlate(RaptureAtkModule.NamePlateInfo* namePlateInfo, bool force = false) {
+        using var _ = PerformanceMonitors.CleanupProcessing.Start();
+        if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectID.ObjectID)) {
+            PluginLog.Verbose($"Cleanup NamePlate: {namePlateInfo->Name.ToSeString().TextValue}");
+            var title = namePlateInfo->Title.ToSeString();
+            if (title.TextValue.Length > 0) {
+                title.Payloads.Insert(0, new TextPayload("《"));
+                title.Payloads.Add( new TextPayload("《"));
+            }
+            namePlateInfo->DisplayTitle.SetString(title.EncodeNullTerminated());
+            ModifiedNamePlates.Remove((ulong)namePlateInfo);
+        }
+    }
+    
+    public void* UpdateNameplateNpcDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex) {
+        try {
+            CleanupNamePlate(namePlateInfo, true);
+        } catch (Exception ex) {
+            PluginLog.LogError(ex, "Error in Cleanup of NPC Nameplate");
+        }
+        return updateNameplateHookNpc!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, gameObject, numArrayIndex, stringArrayIndex);
+    }
+
     public void AfterNameplateUpdate(RaptureAtkModule.NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
         var gameObject = &battleChara->Character.GameObject;
-              
         if (gameObject->ObjectKind != 1 || gameObject->SubKind != 4) return;
         var player = PluginService.Objects.CreateObjectReference((nint)gameObject) as PlayerCharacter;
         if (player == null) return;
-
-        string titleText;
-        bool titlePrefix;
+        using var fp = PerformanceMonitors.FrameProcessing.Start();
+        using var pp = PerformanceMonitors.PlateProcessing.Start();
         var titleChanged = false;
 
         if (!TryGetTitle(player, out var title) || title == null) {
-            var assignedTitleId = (short)namePlateInfo->Flags;
+            title = GetOriginalTitle(player);
+        }
+        
+        var currentDisplayTitle = namePlateInfo->DisplayTitle.ToSeString();
+        var displayTitle = title.ToSeString(true, Config.ShowColoredTitles);
 
-            if (assignedTitleId <= 0) {
-                titleText = string.Empty;
-                titlePrefix = false;
+        if (!displayTitle.IsSameAs(currentDisplayTitle, out var encoded)) {
+            if (encoded == null || encoded.Length == 0) {
+                namePlateInfo->DisplayTitle.SetString(string.Empty);
             } else {
-                var titleData = titleSheet!.GetRow((uint)assignedTitleId);
-                if (titleData == null) {
-                    // Uh... ?
-                    titleText = string.Empty;
-                    titlePrefix = false;
-                } else {
-                    var genderedTitle = gameObject->Gender == 0 ? titleData.Masculine : titleData.Feminine;
-                    titleText = genderedTitle.ToDalamudString().TextValue;
-                    titlePrefix = titleData.IsPrefix;
-                }
+                namePlateInfo->DisplayTitle.SetString(encoded);
             }
-        } else {
-            titleText = title.Title ?? string.Empty;
-            titlePrefix = title.IsPrefix;
-        }
-        
-        if (namePlateInfo->Title.ToString() != titleText) {
-            PluginLog.Verbose($"Change '{player.Name.TextValue}' title: <{titleText}> (was <{namePlateInfo->Title.ToString()}>)");
-            namePlateInfo->Title.SetString(titleText);
             titleChanged = true;
         }
 
-        var displayTitle = string.IsNullOrEmpty(titleText) ? string.Empty : $"《{titleText}》";
-        if (namePlateInfo->DisplayTitle.ToString() != displayTitle) {
-            PluginLog.Verbose($"Change '{player.Name.TextValue}' display title: <{displayTitle}> (was <{namePlateInfo->DisplayTitle.ToString()}>");
-            namePlateInfo->DisplayTitle.SetString(displayTitle);
-            titleChanged = true;
-        }
-        
         var isPrefix = (namePlateInfo->Flags & 0x1000000) == 0x1000000;
         namePlateInfo->Flags &= ~0x1000000;
-        if (titlePrefix) namePlateInfo->Flags |= 0x1000000;
-        if (isPrefix != titlePrefix) titleChanged = true;
+        if (title.IsPrefix) namePlateInfo->Flags |= 0x1000000;
+        if (isPrefix != title.IsPrefix) titleChanged = true;
+
+        if (titleChanged && !ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
+           ModifiedNamePlates.Add((ulong)namePlateInfo, namePlateInfo->ObjectID.ObjectID); 
+        }
         
         if (titleChanged && (nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
-            IpcProvider.ChangedLocalCharacterTitle(titleText, titlePrefix);
+            IpcProvider.ChangedLocalCharacterTitle(title);
         }
     }
     
@@ -223,7 +247,10 @@ public unsafe class Plugin : IDalamudPlugin {
         IpcProvider.DeInit();
         updateNameplateHook?.Disable();
         updateNameplateHook?.Dispose();
+        updateNameplateHookNpc?.Disable();
+        updateNameplateHookNpc?.Dispose();
         updateNameplateHook = null;
+        updateNameplateHookNpc = null;
 
         PluginService.Commands.RemoveHandler("/honorific");
         windowSystem.RemoveAllWindows();

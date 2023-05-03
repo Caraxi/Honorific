@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
@@ -7,10 +8,13 @@ using System.Numerics;
 using System.Text;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
 using Dalamud.Logging;
 using Dalamud.Utility;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using Newtonsoft.Json;
@@ -20,9 +24,11 @@ namespace Honorific;
 
 public class ConfigWindow : Window {
     private PluginConfig config;
+    private Plugin plugin;
 
-    public ConfigWindow(string name, PluginConfig config) : base(name) {
+    public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name) {
         this.config = config;
+        this.plugin = plugin;
         
         SizeConstraints = new WindowSizeConstraints {
             MinimumSize = ImGuiHelpers.ScaledVector2(800, 400),
@@ -31,6 +37,9 @@ public class ConfigWindow : Window {
 
         Size = ImGuiHelpers.ScaledVector2(800, 500);
         SizeCondition = ImGuiCond.Once;
+        
+        BuildColorList();
+        
     }
     
     private Vector2 iconButtonSize = new(16);
@@ -101,6 +110,7 @@ public class ConfigWindow : Window {
             }
             ImGui.EndChild();
 
+            var charListSize = ImGui.GetItemRectSize();
 
             if (PluginService.ClientState.LocalPlayer != null) {
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.User)) {
@@ -108,7 +118,7 @@ public class ConfigWindow : Window {
                         config.TryAddCharacter(PluginService.ClientState.LocalPlayer.Name.TextValue, PluginService.ClientState.LocalPlayer.HomeWorld.Id);
                     }
                 }
-                iconButtonSize = ImGui.GetItemRectSize() + ImGui.GetStyle().ItemSpacing;
+                
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add current character");
                 
                 ImGui.SameLine();
@@ -118,13 +128,62 @@ public class ConfigWindow : Window {
                     }
                 }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add targeted character");
+                ImGui.SameLine();
             }
+            
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.Cog)) {
+                selectedCharacter = null;
+                selectedName = string.Empty;
+                selectedWorld = 0;
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Plugin Options");
+            iconButtonSize = ImGui.GetItemRectSize() + ImGui.GetStyle().ItemSpacing;
         }
         ImGui.EndGroup();
         
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
+
+                if (Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
+                    var activePlayer = PluginService.Objects.FirstOrDefault(t => t is PlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
+                    if (activePlayer is PlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
+                        ImGui.TextDisabled($"ObjectID: {activePlayer:X8}");
+                        unsafe {
+                            var raptureAtkModule = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
+
+                            var npi = &raptureAtkModule->NamePlateInfoArray;
+                            for (var i = 0; i < 50 && i < raptureAtkModule->NameplateInfoCount; i++, npi++) {
+                                if (npi->ObjectID.ObjectID == pc.ObjectId) {
+                                    ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}]");
+                                    Util.ShowStruct(*npi, (ulong) npi, true, new string[] { $"{(ulong)npi:X}"});
+
+                                    var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles);
+                                    
+                                    var currentTitle = npi->DisplayTitle.ToSeString();
+                                    ImGui.Text($"Current Title:");
+                                    ImGui.Indent();
+                                    foreach(var p in currentTitle.Payloads) ImGui.Text($"{p}");
+                                    ImGui.Unindent();
+                                    ImGui.Text($"Expected Title:");
+                                    ImGui.Indent();
+                                    foreach(var p in expectedTitleSeString.Payloads) ImGui.Text($"{p}");
+                                    ImGui.Unindent();
+                                    
+                                    ImGui.Text($"Titles Match?: {currentTitle.IsSameAs(expectedTitleSeString, out _)}");
+                                    
+                                }
+                            }
+                        }
+                    } else {
+                        ImGui.TextDisabled("Character is not currently in world.");
+                    }
+
+                    ImGui.TreePop();
+                }
+                
+                
+                
 
                 if (Plugin.IpcAssignedTitles.TryGetValue((selectedName, selectedWorld), out var title)) {
 
@@ -135,10 +194,14 @@ public class ConfigWindow : Window {
                     
                     ImGui.BeginDisabled();
                     
-                    if (ImGui.BeginTable("TitlesTable", 4)) {
+                    if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 5 : 3)) {
                         ImGui.TableSetupColumn("##enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
                         ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
                         ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                        if (config.ShowColoredTitles) {
+                            ImGui.TableSetupColumn("Colour", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                            ImGui.TableSetupColumn("Glow", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                        }
                         ImGui.TableSetupColumn("##condition", ImGuiTableColumnFlags.WidthStretch);
                         ImGui.TableHeadersRow();
 
@@ -148,13 +211,8 @@ public class ConfigWindow : Window {
 
                         ImGui.EndTable();
                     }
-
-
-                   
                     
                     ImGui.EndDisabled();
-                    
-
                     return;
                 }
                 
@@ -187,17 +245,43 @@ public class ConfigWindow : Window {
                             selectedCharacter.CustomTitles.AddRange(importedCharacter.CustomTitles);
                             selectedCharacter.DefaultTitle = importedCharacter.DefaultTitle;
                         }
-                        
-                        
-                        
-                        
-
                     } catch (Exception ex) {
                         PluginLog.Error(ex, "Error decoding clipboard text");
                     }
                 }
 
                 DrawCharacterView(selectedCharacter);
+            } else {
+                
+                ImGui.Text("Honorific Options");
+                ImGui.Separator();
+
+                ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
+
+
+
+                if (Plugin.IsDebug && ImGui.TreeNode("Debugging")) {
+                    PerformanceMonitors.DrawTable();
+                    ImGui.Separator();
+
+                    ImGui.Text("Modified Nameplates:");
+                    foreach (var (m, o) in plugin.ModifiedNamePlates) {
+                        unsafe {
+                            var npi = (RaptureAtkModule.NamePlateInfo*)m;
+                            ImGui.PushID(new nint(npi));
+                            Util.ShowStruct(npi);
+                            ImGui.PopID();
+                        }
+                        
+
+
+                    }
+                    
+                }
+                
+                
+                
+
             }
             
         }
@@ -206,11 +290,15 @@ public class ConfigWindow : Window {
 
     private void DrawCharacterView(CharacterConfig? characterConfig) {
         if (characterConfig == null) return;
-
-        if (ImGui.BeginTable("TitlesTable", 4)) {
+        
+        if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
             ImGui.TableSetupColumn("Enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
             ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
             ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+            if (config.ShowColoredTitles) {
+                ImGui.TableSetupColumn("Colour", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                ImGui.TableSetupColumn("Glow", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+            }
             ImGui.TableSetupColumn("Condition", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
 
@@ -366,6 +454,122 @@ public class ConfigWindow : Window {
         }
     }
 
+
+
+    private static List<UIColor>? _foregroundColours = null;
+    private static List<UIColor>? _glowColours = null;
+    
+    public static Vector4 UiColorToVector4(uint col) {
+        var fa = col & 255;
+        var fb = (col >> 8) & 255;
+        var fg = (col >> 16) & 255;
+        var fr = (col >> 24) & 255;
+        return new Vector4(fr / 255f, fg / 255f, fb / 255f, fa / 255f);
+    }
+
+    private static void BuildColorList() {
+        _foregroundColours = new List<UIColor>();
+        _glowColours = new List<UIColor>();
+        var s = PluginService.Data.GetExcelSheet<UIColor>();
+        if (s == null) return;
+        foreach (var c in s) {
+            if (c.RowId == 0) continue;
+            if (_foregroundColours.All(u => u.UIForeground != c.UIForeground)) {
+                _foregroundColours.Add(c);
+            }
+            if (_glowColours.All(u => u.UIGlow != c.UIGlow)) {
+                _glowColours.Add(c);
+            }
+        }
+
+        _foregroundColours.Sort((a, b) => {
+            var aRgb = UiColorToVector4(a.UIForeground);
+            var bRgb = UiColorToVector4(b.UIForeground);
+            ImGui.ColorConvertRGBtoHSV(aRgb.X, aRgb.Y, aRgb.Z, out var aH, out var aS, out var aV);
+            ImGui.ColorConvertRGBtoHSV(bRgb.X, bRgb.Y, bRgb.Z, out var bH, out var bS, out var bV);
+            if (aH < bH) return -1;
+            if (aH > bH) return 1;
+            if (aS < bS) return -1;
+            if (aS > bS) return 1;
+            if (aV < bV) return -1;
+            if (aV > bV) return 1;
+            return 0;
+        });
+        
+        _glowColours.Sort((a, b) => {
+            var aRgb = UiColorToVector4(a.UIGlow);
+            var bRgb = UiColorToVector4(b.UIGlow);
+            ImGui.ColorConvertRGBtoHSV(aRgb.X, aRgb.Y, aRgb.Z, out var aH, out var aS, out var aV);
+            ImGui.ColorConvertRGBtoHSV(bRgb.X, bRgb.Y, bRgb.Z, out var bH, out var bS, out var bV);
+            if (aH < bH) return -1;
+            if (aH > bH) return 1;
+            if (aS < bS) return -1;
+            if (aS > bS) return 1;
+            if (aV < bV) return -1;
+            if (aV > bV) return 1;
+            return 0;
+        });
+
+    }
+
+
+    private void DrawColorPicker(string label, ref ushort colorKey, IEnumerable<UIColor>? colors = null) {
+        colors ??= PluginService.Data.GetExcelSheet<UIColor>();
+
+        if (colors == null) {
+            ImGui.TextColored(ImGuiColors.DalamudRed, "Error");
+            return;
+        }
+        
+        var comboOpen = false;
+        var displayColor = PluginService.Data.GetExcelSheet<UIColor>()?.GetRow(colorKey);
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        if (displayColor == null || displayColor.RowId == 0) {
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, 0xFFFFFFFF);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, 0xFFFFFFFF);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, 0xFFFFFFFF);
+            var p = ImGui.GetCursorScreenPos();
+            var dl = ImGui.GetWindowDrawList();
+            comboOpen = ImGui.BeginCombo("##color", " ", ImGuiComboFlags.HeightLargest);
+            dl.AddLine(p, p + new Vector2(checkboxSize), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
+            ImGui.PopStyleColor(3);
+        } else {
+            var vec4 = UiColorToVector4(displayColor.UIForeground | 0x000000FF);
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, vec4);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, vec4);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, vec4);
+            comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest);
+            ImGui.PopStyleColor(3);
+        }
+        
+        if (comboOpen) {
+            if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
+                colorKey = 0;
+                ImGui.CloseCurrentPopup();
+            }
+            var dl = ImGui.GetWindowDrawList();
+            dl.AddLine(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
+            ImGui.SameLine();
+
+            var i = 1;
+            foreach (var c in colors) {
+                if (ImGui.ColorButton($"##ColorPick_{i}_{c.RowId}", UiColorToVector4(c.UIForeground), ImGuiColorEditFlags.NoTooltip)) {
+                    colorKey = (ushort)c.RowId;
+                    ImGui.CloseCurrentPopup();
+                }
+
+                if (Plugin.IsDebug && ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip($"ColorKey#{c.RowId}");
+                }
+                if ( i++ % 10 != 9) ImGui.SameLine();
+            }
+
+
+            ImGui.EndCombo();
+        }
+    }
+    
+    
     private void DrawTitleCommon(CustomTitle title) {
         ImGui.TableNextColumn();
         ImGui.SetNextItemWidth(-1);
@@ -373,6 +577,14 @@ public class ConfigWindow : Window {
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
         ImGui.Checkbox($"##prefix", ref title.IsPrefix);
+        checkboxSize = ImGui.GetItemRectSize().X;
+        if (config.ShowColoredTitles) {
+            ImGui.TableNextColumn();
+            DrawColorPicker("##colour", ref title.ColorKey, _foregroundColours);
+            ImGui.TableNextColumn();
+            DrawColorPicker("##glow", ref title.GlowKey, _glowColours); 
+        }
+
         ImGui.TableNextColumn();
     }
 
