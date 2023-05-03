@@ -172,8 +172,12 @@ public unsafe class Plugin : IDalamudPlugin {
         if (title.IsPrefix) namePlateInfo->Flags |= 0x1000000;
         if (isPrefix != title.IsPrefix) titleChanged = true;
 
-        if (titleChanged && !ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
-           ModifiedNamePlates.Add((ulong)namePlateInfo, namePlateInfo->ObjectID.ObjectID); 
+        if (titleChanged) {
+            if (ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
+                ModifiedNamePlates[(ulong)namePlateInfo] = namePlateInfo->ObjectID.ObjectID;
+            } else {
+                ModifiedNamePlates.Add((ulong)namePlateInfo, namePlateInfo->ObjectID.ObjectID); 
+            }
         }
         
         if (titleChanged && (nint) battleChara == PluginService.ClientState.LocalPlayer?.Address) {
