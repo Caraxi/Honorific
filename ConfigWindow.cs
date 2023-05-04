@@ -513,7 +513,7 @@ public class ConfigWindow : Window {
     }
 
 
-    private void DrawColorPicker(string label, ref ushort colorKey, IEnumerable<UIColor>? colors = null) {
+    private void DrawColorPicker(string label, ref ushort colorKey, bool glow, IEnumerable<UIColor>? colors = null) {
         colors ??= PluginService.Data.GetExcelSheet<UIColor>();
 
         if (colors == null) {
@@ -530,11 +530,11 @@ public class ConfigWindow : Window {
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, 0xFFFFFFFF);
             var p = ImGui.GetCursorScreenPos();
             var dl = ImGui.GetWindowDrawList();
-            comboOpen = ImGui.BeginCombo("##color", " ", ImGuiComboFlags.HeightLargest);
+            comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest);
             dl.AddLine(p, p + new Vector2(checkboxSize), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
             ImGui.PopStyleColor(3);
         } else {
-            var vec4 = UiColorToVector4(displayColor.UIForeground | 0x000000FF);
+            var vec4 = UiColorToVector4((glow ? displayColor.UIGlow : displayColor.UIForeground) | 0x000000FF);
             ImGui.PushStyleColor(ImGuiCol.FrameBg, vec4);
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive, vec4);
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, vec4);
@@ -553,7 +553,7 @@ public class ConfigWindow : Window {
 
             var i = 1;
             foreach (var c in colors) {
-                if (ImGui.ColorButton($"##ColorPick_{i}_{c.RowId}", UiColorToVector4(c.UIForeground), ImGuiColorEditFlags.NoTooltip)) {
+                if (ImGui.ColorButton($"##ColorPick_{i}_{c.RowId}", UiColorToVector4(glow ? c.UIGlow : c.UIForeground), ImGuiColorEditFlags.NoTooltip)) {
                     colorKey = (ushort)c.RowId;
                     ImGui.CloseCurrentPopup();
                 }
@@ -580,9 +580,9 @@ public class ConfigWindow : Window {
         checkboxSize = ImGui.GetItemRectSize().X;
         if (config.ShowColoredTitles) {
             ImGui.TableNextColumn();
-            DrawColorPicker("##colour", ref title.ColorKey, _foregroundColours);
+            DrawColorPicker("##colour", ref title.ColorKey, false, _foregroundColours);
             ImGui.TableNextColumn();
-            DrawColorPicker("##glow", ref title.GlowKey, _glowColours); 
+            DrawColorPicker("##glow", ref title.GlowKey, true, _glowColours); 
         }
 
         ImGui.TableNextColumn();
