@@ -358,7 +358,7 @@ public class ConfigWindow : Window {
                 
                 DrawTitleCommon(title);
 
-                ImGui.SetNextItemWidth(150);
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 250 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 150 * ImGuiHelpers.GlobalScale);
                 if (ImGui.BeginCombo("##conditionType", title.TitleCondition.GetAttribute<DescriptionAttribute>()?.Description ?? $"{title.TitleCondition}")) {
                     foreach (var v in Enum.GetValues<TitleConditionType>()) {
                         if (ImGui.Selectable(v.GetAttribute<DescriptionAttribute>()?.Description ?? $"{v}", v == title.TitleCondition)) {
@@ -379,6 +379,7 @@ public class ConfigWindow : Window {
                         var sheet = PluginService.Data.GetExcelSheet<ClassJob>();
                         if (sheet != null) {
                             ImGui.SameLine();
+                            if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
                             ImGui.SetNextItemWidth(-1);
                             var selected = sheet.GetRow((uint)title.ConditionParam0);
                             if (ImGui.BeginCombo("##conditionClassJob", title.ConditionParam0 == 0 ? "Select..." : selected?.Abbreviation.RawString ?? $"Unknown({title.ConditionParam0}")) {
@@ -398,6 +399,7 @@ public class ConfigWindow : Window {
                     case TitleConditionType.JobRole: {
                         var selected = (ClassJobRole)title.ConditionParam0;
                         ImGui.SameLine();
+                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
                         ImGui.SetNextItemWidth(-1);
                         if (ImGui.BeginCombo("##conditionRole", selected.GetAttribute<DescriptionAttribute>()?.Description ?? $"{selected}")) {
                             foreach (var v in Enum.GetValues<ClassJobRole>()) {
