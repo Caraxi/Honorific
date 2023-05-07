@@ -58,7 +58,7 @@ public unsafe class Plugin : IDalamudPlugin {
         windowSystem = new WindowSystem(Assembly.GetExecutingAssembly().FullName);
         configWindow = new ConfigWindow($"{Name} | Config", this, Config) {
             #if DEBUG
-            IsOpen = true
+            IsOpen = Config.DebugOpenOnStatup
             #endif
         };
         windowSystem.AddWindow(configWindow);

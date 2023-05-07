@@ -257,8 +257,10 @@ public class ConfigWindow : Window {
                 ImGui.Separator();
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
-
-
+                
+                #if DEBUG
+                ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
+                #endif
 
                 if (Plugin.IsDebug && ImGui.TreeNode("Debugging")) {
                     PerformanceMonitors.DrawTable();

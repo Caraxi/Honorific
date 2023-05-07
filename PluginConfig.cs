@@ -9,6 +9,7 @@ public class PluginConfig : IPluginConfiguration {
     public Dictionary<uint, Dictionary<string, CharacterConfig>> WorldCharacterDictionary = new();
 
     public bool ShowColoredTitles = true;
+    public bool DebugOpenOnStatup = true;
 
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {
         characterConfig = null;
