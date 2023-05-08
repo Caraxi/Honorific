@@ -35,8 +35,8 @@ public class ConfigWindow : Window {
             MaximumSize = new Vector2(float.MaxValue)
         };
 
-        Size = ImGuiHelpers.ScaledVector2(800, 500);
-        SizeCondition = ImGuiCond.Once;
+        Size = ImGuiHelpers.ScaledVector2(1000, 500);
+        SizeCondition = ImGuiCond.FirstUseEver;
         
         BuildColorList();
         
