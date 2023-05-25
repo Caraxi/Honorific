@@ -190,8 +190,7 @@ public unsafe class Plugin : IDalamudPlugin {
     public CustomTitle GetOriginalTitle(PlayerCharacter playerCharacter) {
         var title = new CustomTitle();
         var character = (Character*) playerCharacter.Address;
-        var titleId = (ushort)Marshal.ReadInt16(playerCharacter.Address, 0x1AF8);
-        if (titleId == 0) return title;
+        var titleId = character->TitleID;
         var titleData = titleSheet!.GetRow(titleId);
         if (titleData == null) return title;
         var genderedTitle = character->GameObject.Gender == 0 ? titleData.Masculine : titleData.Feminine;
