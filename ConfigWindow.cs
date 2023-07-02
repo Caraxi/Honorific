@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.IO.Compression;
@@ -8,7 +7,6 @@ using System.Numerics;
 using System.Text;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Interface;
-using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
 using Dalamud.Logging;
@@ -23,8 +21,8 @@ using World = Lumina.Excel.GeneratedSheets.World;
 namespace Honorific; 
 
 public class ConfigWindow : Window {
-    private PluginConfig config;
-    private Plugin plugin;
+    private readonly PluginConfig config;
+    private readonly Plugin plugin;
 
     public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name) {
         this.config = config;
@@ -37,9 +35,6 @@ public class ConfigWindow : Window {
 
         Size = ImGuiHelpers.ScaledVector2(1000, 500);
         SizeCondition = ImGuiCond.FirstUseEver;
-        
-        BuildColorList();
-        
     }
     
     private Vector2 iconButtonSize = new(16);
@@ -274,16 +269,8 @@ public class ConfigWindow : Window {
                             Util.ShowStruct(npi);
                             ImGui.PopID();
                         }
-                        
-
-
                     }
-                    
                 }
-                
-                
-                
-
             }
             
         }
@@ -309,6 +296,7 @@ public class ConfigWindow : Window {
             for (var i = 0; i < characterConfig.CustomTitles.Count; i++) {
                 ImGui.PushID($"title_{i}");
                 var title = characterConfig.CustomTitles[i];
+                title.ConvertKeys();
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
 
@@ -458,77 +446,12 @@ public class ConfigWindow : Window {
         }
     }
 
-
-
-    private static List<UIColor>? _foregroundColours = null;
-    private static List<UIColor>? _glowColours = null;
-    
-    public static Vector4 UiColorToVector4(uint col) {
-        var fa = col & 255;
-        var fb = (col >> 8) & 255;
-        var fg = (col >> 16) & 255;
-        var fr = (col >> 24) & 255;
-        return new Vector4(fr / 255f, fg / 255f, fb / 255f, fa / 255f);
-    }
-
-    private static void BuildColorList() {
-        _foregroundColours = new List<UIColor>();
-        _glowColours = new List<UIColor>();
-        var s = PluginService.Data.GetExcelSheet<UIColor>();
-        if (s == null) return;
-        foreach (var c in s) {
-            if (c.RowId == 0) continue;
-            if (_foregroundColours.All(u => u.UIForeground != c.UIForeground)) {
-                _foregroundColours.Add(c);
-            }
-            if (_glowColours.All(u => u.UIGlow != c.UIGlow)) {
-                _glowColours.Add(c);
-            }
-        }
-
-        _foregroundColours.Sort((a, b) => {
-            var aRgb = UiColorToVector4(a.UIForeground);
-            var bRgb = UiColorToVector4(b.UIForeground);
-            ImGui.ColorConvertRGBtoHSV(aRgb.X, aRgb.Y, aRgb.Z, out var aH, out var aS, out var aV);
-            ImGui.ColorConvertRGBtoHSV(bRgb.X, bRgb.Y, bRgb.Z, out var bH, out var bS, out var bV);
-            if (aH < bH) return -1;
-            if (aH > bH) return 1;
-            if (aS < bS) return -1;
-            if (aS > bS) return 1;
-            if (aV < bV) return -1;
-            if (aV > bV) return 1;
-            return 0;
-        });
-        
-        _glowColours.Sort((a, b) => {
-            var aRgb = UiColorToVector4(a.UIGlow);
-            var bRgb = UiColorToVector4(b.UIGlow);
-            ImGui.ColorConvertRGBtoHSV(aRgb.X, aRgb.Y, aRgb.Z, out var aH, out var aS, out var aV);
-            ImGui.ColorConvertRGBtoHSV(bRgb.X, bRgb.Y, bRgb.Z, out var bH, out var bS, out var bV);
-            if (aH < bH) return -1;
-            if (aH > bH) return 1;
-            if (aS < bS) return -1;
-            if (aS > bS) return 1;
-            if (aV < bV) return -1;
-            if (aV > bV) return 1;
-            return 0;
-        });
-
-    }
-
-
-    private void DrawColorPicker(string label, ref ushort colorKey, bool glow, IEnumerable<UIColor>? colors = null) {
-        colors ??= PluginService.Data.GetExcelSheet<UIColor>();
-
-        if (colors == null) {
-            ImGui.TextColored(ImGuiColors.DalamudRed, "Error");
-            return;
-        }
+    private Vector3 editingColour = Vector3.One;
+    private void DrawColorPicker(string label, ref Vector3? color) {
         
         var comboOpen = false;
-        var displayColor = PluginService.Data.GetExcelSheet<UIColor>()?.GetRow(colorKey);
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        if (displayColor == null || displayColor.RowId == 0) {
+        if (color == null) {
             ImGui.PushStyleColor(ImGuiCol.FrameBg, 0xFFFFFFFF);
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive, 0xFFFFFFFF);
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, 0xFFFFFFFF);
@@ -538,36 +461,56 @@ public class ConfigWindow : Window {
             dl.AddLine(p, p + new Vector2(checkboxSize), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
             ImGui.PopStyleColor(3);
         } else {
-            var vec4 = UiColorToVector4((glow ? displayColor.UIGlow : displayColor.UIForeground) | 0x000000FF);
-            ImGui.PushStyleColor(ImGuiCol.FrameBg, vec4);
-            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, vec4);
-            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, vec4);
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(color.Value, 1));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(color.Value, 1));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(color.Value, 1));
             comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest);
             ImGui.PopStyleColor(3);
         }
         
         if (comboOpen) {
+            if (ImGui.IsWindowAppearing()) {
+                editingColour = color ?? Vector3.One;
+            }
             if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
-                colorKey = 0;
+                color = null;
                 ImGui.CloseCurrentPopup();
+            }
+
+            if (ImGui.IsItemHovered()) {
+                ImGui.SetTooltip("Clear selected colour");
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
             }
             var dl = ImGui.GetWindowDrawList();
             dl.AddLine(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
-            ImGui.SameLine();
 
-            var i = 1;
-            foreach (var c in colors) {
-                if (ImGui.ColorButton($"##ColorPick_{i}_{c.RowId}", UiColorToVector4(glow ? c.UIGlow : c.UIForeground), ImGuiColorEditFlags.NoTooltip)) {
-                    colorKey = (ushort)c.RowId;
+            if (color != null) {
+                ImGui.SameLine();
+                if (ImGui.ColorButton($"##ColorPick_old", new Vector4(color.Value, 1), ImGuiColorEditFlags.NoTooltip)) {
                     ImGui.CloseCurrentPopup();
                 }
-
-                if (Plugin.IsDebug && ImGui.IsItemHovered()) {
-                    ImGui.SetTooltip($"ColorKey#{c.RowId}");
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Revert to previous selection");
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
                 }
-                if ( i++ % 10 != 9) ImGui.SameLine();
             }
+            
+            ImGui.SameLine();
+            
+            if (ImGui.ColorButton("Confirm", new Vector4(editingColour, 1), ImGuiColorEditFlags.NoTooltip, new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y))) {
+                color = editingColour;
+                ImGui.CloseCurrentPopup();
+            }
+            var size = ImGui.GetItemRectSize();
 
+            if (ImGui.IsItemHovered()) {
+                dl.AddRectFilled(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0x33333333);
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            }
+            
+            var textSize = ImGui.CalcTextSize("Confirm");
+            dl.AddText(ImGui.GetItemRectMin() + size / 2 - textSize / 2, ImGui.ColorConvertFloat4ToU32(new Vector4(editingColour, 1)) ^ 0x00FFFFFF, "Confirm");
+            ImGui.ColorPicker3($"##ColorPick", ref editingColour, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview);
 
             ImGui.EndCombo();
         }
@@ -584,9 +527,9 @@ public class ConfigWindow : Window {
         checkboxSize = ImGui.GetItemRectSize().X;
         if (config.ShowColoredTitles) {
             ImGui.TableNextColumn();
-            DrawColorPicker("##colour", ref title.ColorKey, false, _foregroundColours);
+            DrawColorPicker("##colour", ref title.Color);
             ImGui.TableNextColumn();
-            DrawColorPicker("##glow", ref title.GlowKey, true, _glowColours); 
+            DrawColorPicker("##glow", ref title.Glow); 
         }
 
         ImGui.TableNextColumn();
