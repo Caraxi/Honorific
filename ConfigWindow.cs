@@ -296,7 +296,6 @@ public class ConfigWindow : Window {
             for (var i = 0; i < characterConfig.CustomTitles.Count; i++) {
                 ImGui.PushID($"title_{i}");
                 var title = characterConfig.CustomTitles[i];
-                title.ConvertKeys();
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
 
