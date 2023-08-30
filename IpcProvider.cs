@@ -33,11 +33,12 @@ public static class IpcProvider {
         SetCharacterTitle.RegisterAction((character, titleDataJson) => {
             try {
                 if (character is not PlayerCharacter playerCharacter) return;
-                Plugin.IpcAssignedTitles.Remove((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id));
+                Plugin.IpcAssignedTitles.Remove(playerCharacter.ObjectId);
                 if (titleDataJson == string.Empty) return;
                 var titleData = JsonConvert.DeserializeObject<TitleData>(titleDataJson);
                 if (titleData == null) return;
-                Plugin.IpcAssignedTitles.Add((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), titleData);
+                Plugin.IpcAssignedTitles.Add(playerCharacter.ObjectId, titleData);
+                plugin.RefreshNameplates();
             } catch (Exception ex) {
                 PluginLog.Error(ex, $"Error handling {nameof(SetCharacterTitle)} IPC.");
             }
@@ -61,7 +62,8 @@ public static class IpcProvider {
         ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
         ClearCharacterTitle.RegisterAction(character => {
             if (character is not PlayerCharacter playerCharacter) return;
-            Plugin.IpcAssignedTitles.Remove((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id));
+            Plugin.IpcAssignedTitles.Remove(playerCharacter.ObjectId);
+            plugin.RefreshNameplates();
         });
 
         LocalCharacterTitleChanged = PluginService.PluginInterface.GetIpcProvider<string, object>($"{NameSpace}.{nameof(LocalCharacterTitleChanged)}");

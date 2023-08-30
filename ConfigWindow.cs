@@ -5,7 +5,11 @@ using System.IO.Compression;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using Dalamud.Game.ClientState;
+using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
+using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.Config;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Windowing;
@@ -71,17 +75,22 @@ public class ConfigWindow : Window {
             ImGuiHelpers.ScaledDummy(10);
         }
 
+        
         if (Plugin.IsDebug && Plugin.IpcAssignedTitles.Count > 0) {
             ImGui.TextDisabled("[DEBUG] IPC Assignments");
             ImGui.Separator();
 
-            foreach (var (name, worldId) in Plugin.IpcAssignedTitles.Keys.ToArray()) {
-                var world = PluginService.Data.GetExcelSheet<World>()?.GetRow(worldId);
+            foreach (var objectId in Plugin.IpcAssignedTitles.Keys.ToArray()) {
+                var chr = PluginService.Objects.FirstOrDefault(c => c.ObjectId == objectId);
+                if (chr is not PlayerCharacter pc) continue;
+                
+
+                var world = PluginService.Data.GetExcelSheet<World>()?.GetRow(pc.HomeWorld.Id);
                 if (world == null) continue;
-                if (ImGui.Selectable($"{name}##{world.Name.RawString}##ipc", selectedName == name && selectedWorld == worldId)) {
-                    config.TryGetCharacterConfig(name, worldId, out selectedCharacter);
+                if (ImGui.Selectable($"{chr.Name}##{world.Name.RawString}##ipc", selectedName == chr.Name.TextValue && selectedWorld == pc.HomeWorld.Id)) {
+                    config.TryGetCharacterConfig(chr.Name.TextValue, pc.HomeWorld.Id, out selectedCharacter);
                     selectedCharacter ??= new CharacterConfig();
-                    selectedName = name;
+                    selectedName = pc.Name.TextValue;
                     selectedWorld = world.RowId;
                 }
                 ImGui.SameLine();
@@ -90,7 +99,7 @@ public class ConfigWindow : Window {
             
             ImGuiHelpers.ScaledDummy(10);
         }
-
+        
     }
 
     private CharacterConfig? selectedCharacter;
@@ -98,6 +107,7 @@ public class ConfigWindow : Window {
     private uint selectedWorld;
 
     public override void Draw() {
+        var modified = false;
         ImGui.BeginGroup();
         {
             if (ImGui.BeginChild("character_select", ImGuiHelpers.ScaledVector2(240, 0) - iconButtonSize with { X = 0 }, true)) {
@@ -139,18 +149,53 @@ public class ConfigWindow : Window {
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
+                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is PlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
 
+                if (activePlayer is PlayerCharacter player) {
+                    var option = UiConfigOption.NamePlateNameTitleTypeOther;
+                    var optionGroupNameId = 7712U;
+                    if (player.StatusFlags.HasFlag(StatusFlags.PartyMember)) {
+                        option = UiConfigOption.NamePlateNameTitleTypeParty;
+                        optionGroupNameId = 7710;
+                    } else if (player.StatusFlags.HasFlag(StatusFlags.AllianceMember)) {
+                        option = UiConfigOption.NamePlateNameTitleTypeAlliance;
+                        optionGroupNameId = 7711;
+                    } else if (player.StatusFlags.HasFlag(StatusFlags.Friend)) {
+                        option = UiConfigOption.NamePlateNameTitleTypeFriend;
+                        optionGroupNameId = 7719;
+                    } else if (player == PluginService.ClientState.LocalPlayer) {
+                        option = UiConfigOption.NamePlateNameTitleTypeSelf;
+                        optionGroupNameId = 7700;
+                    }
+                    if (PluginService.GameConfig.TryGet(option, out bool isTitleVisible)) {
+                        if (!isTitleVisible) {
+                            var groupName = PluginService.Data.GetExcelSheet<Addon>()!.GetRow(optionGroupNameId)!.Text.ToDalamudString().TextValue;
+                            var settingName = PluginService.Data.GetExcelSheet<Addon>()!.GetRow(7706)!.Text.ToDalamudString().TextValue;
+                            var text = $"The title of this character is currently hidden by the game options:\n\t{groupName} / {settingName}";
+                            var textSize = ImGui.CalcTextSize(text);
+                            ImGui.PushStyleVar(ImGuiStyleVar.ChildBorderSize, 3);
+                            ImGui.PushStyleColor(ImGuiCol.Border, 0x880000FF);
+                            if (ImGui.BeginChild("warning", new Vector2(ImGui.GetContentRegionAvail().X, textSize.Y + ImGui.GetStyle().WindowPadding.Y * 2), true)) {
+                                ImGui.Text($"{text}");
+                            }
+                            ImGui.EndChild();
+                            ImGui.PopStyleVar();
+                            ImGui.PopStyleColor();
+                        }
+                    }
+                }
+                
                 if (Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
-                    var activePlayer = PluginService.Objects.FirstOrDefault(t => t is PlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
+                    
                     if (activePlayer is PlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
                         ImGui.TextDisabled($"ObjectID: {activePlayer:X8}");
                         unsafe {
                             var raptureAtkModule = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
 
-                            var npi = &raptureAtkModule->NamePlateInfoArray;
+                            var npi = &raptureAtkModule->NamePlateInfoArray + 1;
                             for (var i = 0; i < 50 && i < raptureAtkModule->NameplateInfoCount; i++, npi++) {
                                 if (npi->ObjectID.ObjectID == pc.ObjectId) {
-                                    ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}]");
+                                    ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectID.ObjectID:X8}");
                                     Util.ShowStruct(*npi, (ulong) npi, true, new string[] { $"{(ulong)npi:X}"});
 
                                     var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles);
@@ -180,11 +225,12 @@ public class ConfigWindow : Window {
                 
                 
 
-                if (Plugin.IpcAssignedTitles.TryGetValue((selectedName, selectedWorld), out var title)) {
+                if (activePlayer != null && Plugin.IpcAssignedTitles.TryGetValue(activePlayer.ObjectId, out var title)) {
 
                     ImGui.Text("This character's title is currently assigned by another plugin.");
                     if (Plugin.IsDebug && ImGui.Button("Clear IPC Assignment")) {
-                        Plugin.IpcAssignedTitles.Remove((selectedName, selectedWorld));
+                        Plugin.IpcAssignedTitles.Remove(activePlayer.ObjectId);
+                        plugin.RefreshNameplates();
                     }
                     
                     ImGui.BeginDisabled();
@@ -202,7 +248,7 @@ public class ConfigWindow : Window {
 
 
                         ImGui.TableNextColumn();
-                        DrawTitleCommon(title);
+                        DrawTitleCommon(title, ref modified);
 
                         ImGui.EndTable();
                     }
@@ -245,7 +291,7 @@ public class ConfigWindow : Window {
                     }
                 }
 
-                DrawCharacterView(selectedCharacter);
+                DrawCharacterView(selectedCharacter, ref modified);
             } else {
                 
                 ImGui.Text("Honorific Options");
@@ -259,6 +305,18 @@ public class ConfigWindow : Window {
 
                 if (Plugin.IsDebug && ImGui.TreeNode("Debugging")) {
                     PerformanceMonitors.DrawTable();
+                    ImGui.Separator();
+
+                    var target = PluginService.Targets.SoftTarget ?? PluginService.Targets.Target;
+                    if (target is PlayerCharacter pc) {
+                        if (ImGui.Button($"Test SET IPC for '{target.Name.TextValue}'")) {
+                            PluginService.PluginInterface.GetIpcSubscriber<Character, string, object>("Honorific.SetCharacterTitle").InvokeAction(pc, JsonConvert.SerializeObject(new TitleData {Color = new Vector3(1, 0, 0), Glow = new Vector3(0, 1, 0), Title = "Test Title", IsPrefix = true}));
+                        }
+                        if (ImGui.Button($"Test CLEAR IPC for '{target.Name.TextValue}'")) {
+                            PluginService.PluginInterface.GetIpcSubscriber<Character, object>("Honorific.ClearCharacterTitle").InvokeAction(pc);
+                        }
+                    }
+
                     ImGui.Separator();
 
                     ImGui.Text("Modified Nameplates:");
@@ -275,9 +333,12 @@ public class ConfigWindow : Window {
             
         }
         ImGui.EndChild();
+        if (modified) {
+            plugin.RefreshNameplates();
+        }
     }
 
-    private void DrawCharacterView(CharacterConfig? characterConfig) {
+    private void DrawCharacterView(CharacterConfig? characterConfig, ref bool modified) {
         if (characterConfig == null) return;
         
         if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
@@ -341,9 +402,11 @@ public class ConfigWindow : Window {
                         }
                         title.Enabled = true;
                     }
+
+                    modified = true;
                 }
                 
-                DrawTitleCommon(title);
+                DrawTitleCommon(title, ref modified);
 
                 ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 250 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 150 * ImGuiHelpers.GlobalScale);
                 if (ImGui.BeginCombo("##conditionType", title.TitleCondition.GetAttribute<DescriptionAttribute>()?.Description ?? $"{title.TitleCondition}")) {
@@ -352,6 +415,7 @@ public class ConfigWindow : Window {
                             if (title.TitleCondition != v) {
                                 title.TitleCondition = v;
                                 title.ConditionParam0 = 0;
+                                modified = true;
                             }
                         }
                     }
@@ -374,6 +438,7 @@ public class ConfigWindow : Window {
                                     if (cj.RowId == 0) continue;
                                     if (ImGui.Selectable(cj.Abbreviation.RawString, title.ConditionParam0 == cj.RowId)) {
                                         title.ConditionParam0 = (int)cj.RowId;
+                                        modified = true;
                                     }
                                 }
                                 ImGui.EndCombo();
@@ -407,10 +472,12 @@ public class ConfigWindow : Window {
 
             if (deleteIndex >= 0) {
                 characterConfig.CustomTitles.RemoveAt(deleteIndex);
+                modified = true;
             } else if (moveUp > 0) {
                 var move = characterConfig.CustomTitles[moveUp];
                 characterConfig.CustomTitles.RemoveAt(moveUp);
                 characterConfig.CustomTitles.Insert(moveUp - 1, move);
+                modified = true;
             }
             
             ImGui.PushID($"title_default");
@@ -422,6 +489,7 @@ public class ConfigWindow : Window {
             ImGui.PushFont(UiBuilder.IconFont);
             if (ImGui.Button($"{(char)FontAwesomeIcon.Plus}##add", new Vector2(checkboxSize))) {
                 characterConfig.CustomTitles.Add(new CustomTitle());
+                modified = true;
             }
             
             ImGui.PopFont();
@@ -432,10 +500,10 @@ public class ConfigWindow : Window {
             ImGui.Dummy(new Vector2(checkboxSize));
             ImGui.SameLine();
             ImGui.PopStyleVar();
-            ImGui.Checkbox("##enable", ref characterConfig.DefaultTitle.Enabled);
+            modified |= ImGui.Checkbox("##enable", ref characterConfig.DefaultTitle.Enabled);
             
             checkboxSize = ImGui.GetItemRectSize().X;
-            DrawTitleCommon(characterConfig.DefaultTitle);
+            DrawTitleCommon(characterConfig.DefaultTitle, ref modified);
             
             ImGui.TextDisabled("Default Title");
             
@@ -446,8 +514,8 @@ public class ConfigWindow : Window {
     }
 
     private Vector3 editingColour = Vector3.One;
-    private void DrawColorPicker(string label, ref Vector3? color) {
-        
+    private bool DrawColorPicker(string label, ref Vector3? color) {
+        var modified = false;
         var comboOpen = false;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         if (color == null) {
@@ -473,6 +541,7 @@ public class ConfigWindow : Window {
             }
             if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
                 color = null;
+                modified = true;
                 ImGui.CloseCurrentPopup();
             }
 
@@ -498,6 +567,7 @@ public class ConfigWindow : Window {
             
             if (ImGui.ColorButton("Confirm", new Vector4(editingColour, 1), ImGuiColorEditFlags.NoTooltip, new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y))) {
                 color = editingColour;
+                modified = true;
                 ImGui.CloseCurrentPopup();
             }
             var size = ImGui.GetItemRectSize();
@@ -513,22 +583,24 @@ public class ConfigWindow : Window {
 
             ImGui.EndCombo();
         }
+
+        return modified;
     }
     
     
-    private void DrawTitleCommon(CustomTitle title) {
+    private void DrawTitleCommon(CustomTitle title, ref bool modified) {
         ImGui.TableNextColumn();
         ImGui.SetNextItemWidth(-1);
-        ImGui.InputText($"##title", ref title.Title, 25);
+        modified |= ImGui.InputText($"##title", ref title.Title, 25);
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
-        ImGui.Checkbox($"##prefix", ref title.IsPrefix);
+        modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
         checkboxSize = ImGui.GetItemRectSize().X;
         if (config.ShowColoredTitles) {
             ImGui.TableNextColumn();
-            DrawColorPicker("##colour", ref title.Color);
+            modified |= DrawColorPicker("##colour", ref title.Color);
             ImGui.TableNextColumn();
-            DrawColorPicker("##glow", ref title.Glow); 
+            modified |= DrawColorPicker("##glow", ref title.Glow); 
         }
 
         ImGui.TableNextColumn();

@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
+using Dalamud.Game.Config;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
@@ -21,6 +21,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
+using Framework = Dalamud.Game.Framework;
 
 namespace Honorific;
 
@@ -47,6 +48,11 @@ public unsafe class Plugin : IDalamudPlugin {
     internal static bool IsDebug;
 
     public Dictionary<ulong, uint> ModifiedNamePlates = new();
+    
+    private readonly Stopwatch updateRequest = new();
+    private readonly Stopwatch timeSinceUpdate = Stopwatch.StartNew();
+    private readonly Stopwatch ipcCleanup = Stopwatch.StartNew();
+
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
 
@@ -82,6 +88,8 @@ public unsafe class Plugin : IDalamudPlugin {
         #endif
 
         PluginService.Framework.Update += PerformanceMonitors.LogFramePerformance;
+        PluginService.Framework.Update += FrameworkOnUpdate;
+        RefreshNameplates();
     }
 
     private void OnCommand(string command, string args) {
@@ -185,7 +193,8 @@ public unsafe class Plugin : IDalamudPlugin {
         }
     }
     
-    public static Dictionary<(string, uint), CustomTitle> IpcAssignedTitles { get; } = new();
+    public static Dictionary<uint, CustomTitle> IpcAssignedTitles { get; } = new();
+    
 
     public CustomTitle GetOriginalTitle(PlayerCharacter playerCharacter) {
         var title = new CustomTitle();
@@ -204,7 +213,7 @@ public unsafe class Plugin : IDalamudPlugin {
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
-        if (IpcAssignedTitles.TryGetValue((playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id), out title) && title.IsValid()) return true;
+        if (IpcAssignedTitles.TryGetValue(playerCharacter.ObjectId, out title) && title.IsValid()) return true;
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
             title = GetOriginalTitle(playerCharacter);
             return true;
@@ -247,6 +256,7 @@ public unsafe class Plugin : IDalamudPlugin {
         IpcProvider.NotifyDisposing();
         PluginLog.Verbose($"Dispose");
         isDisposing = true;
+        DoRefresh();
         IpcProvider.DeInit();
         updateNameplateHook?.Disable();
         updateNameplateHook?.Dispose();
@@ -258,6 +268,55 @@ public unsafe class Plugin : IDalamudPlugin {
         PluginService.Commands.RemoveHandler("/honorific");
         windowSystem.RemoveAllWindows();
         
+        PluginService.Framework.Update -= FrameworkOnUpdate;
         PluginService.PluginInterface.SavePluginConfig(Config);
+    }
+
+    private void DoRefresh() {
+        PluginLog.Verbose("Refreshing Nameplates");
+        foreach (var o in new[] { UiConfigOption.NamePlateNameTitleTypeSelf, UiConfigOption.NamePlateNameTitleTypeFriend, UiConfigOption.NamePlateNameTitleTypeParty, UiConfigOption.NamePlateNameTitleTypeAlliance, UiConfigOption.NamePlateNameTitleTypeOther }) {
+            if (PluginService.GameConfig.TryGet(o, out bool v)) {
+                PluginService.GameConfig.Set(o, !v);
+                PluginService.GameConfig.Set(o, v);
+            }
+        }
+    }
+    
+    private void FrameworkOnUpdate(Framework framework) {
+        if (ipcCleanup.ElapsedMilliseconds > 5000) {
+            ipcCleanup.Restart();
+            if (IpcAssignedTitles.Count > 0) {
+                PluginLog.Verbose("Performing IPC Cleanup");
+                var objectIds = IpcAssignedTitles.Keys.ToList();
+                foreach (var chr in PluginService.Objects) {
+                    if (chr is PlayerCharacter pc) {
+                        if (objectIds.Remove(pc.ObjectId)) {
+                            PluginLog.Verbose($"Object#{pc.ObjectId:X} is still visible. ({chr.Name.TextValue})");
+                        }
+                    }
+                }
+
+                foreach (var o in objectIds) {
+                    PluginLog.Verbose($"Removing Object#{o:X} from IPC. No longer visible.");
+                    IpcAssignedTitles.Remove(o);
+                }
+            }
+        }
+        
+        if (!updateRequest.IsRunning) return;
+        if (runTime.ElapsedMilliseconds < 2000) return;
+        if (timeSinceUpdate.ElapsedMilliseconds < 1000) return;
+        if (updateRequest.ElapsedMilliseconds < 250) return;
+        
+        updateRequest.Reset();
+        timeSinceUpdate.Restart();
+        
+        for (var i = 2; i < 6; i += 2) {
+            PluginService.Framework.RunOnTick(DoRefresh, delayTicks: i);
+        }
+    }
+
+    public void RefreshNameplates() {
+        updateRequest.Restart();
     }
 }
