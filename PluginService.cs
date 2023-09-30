@@ -1,23 +1,20 @@
-﻿using Dalamud.Data;
-using Dalamud.Game;
-using Dalamud.Game.ClientState;
-using Dalamud.Game.ClientState.Conditions;
-using Dalamud.Game.ClientState.Objects;
-using Dalamud.Game.Command;
-using Dalamud.Game.Config;
+﻿using Dalamud.Game.ClientState.Objects;
 using Dalamud.IoC;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 
 namespace Honorific; 
 // ReSharper disable AutoPropertyCanBeMadeGetOnly.Local
 public class PluginService {
     [PluginService] public static DalamudPluginInterface PluginInterface { get; private set; } = null!;
-    [PluginService] public static ClientState ClientState { get; private set; } = null!;
-    [PluginService] public static CommandManager Commands { get; private set; } = null!;
-    [PluginService] public static DataManager Data { get; private set; } = null!;
-    [PluginService] public static ObjectTable Objects { get; private set; } = null!;
-    [PluginService] public static TargetManager Targets { get; private set; } = null!;
-    [PluginService] public static Condition Condition { get; private set; } = null!;
-    [PluginService] public static Framework Framework { get; private set; } = null!;
-    [PluginService] public static GameConfig GameConfig { get; private set; } = null!;
+    [PluginService] public static IClientState ClientState { get; private set; } = null!;
+    [PluginService] public static ICommandManager Commands { get; private set; } = null!;
+    [PluginService] public static IDataManager Data { get; private set; } = null!;
+    [PluginService] public static IObjectTable Objects { get; private set; } = null!;
+    [PluginService] public static ITargetManager Targets { get; private set; } = null!;
+    [PluginService] public static ICondition Condition { get; private set; } = null!;
+    [PluginService] public static IFramework Framework { get; private set; } = null!;
+    [PluginService] public static IGameConfig GameConfig { get; private set; } = null!;
+    [PluginService] public static IGameInteropProvider HookProvider { get; private set; } = null!;
+    [PluginService] public static IPluginLog Log { get; private set; } = null!;
 }

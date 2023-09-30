@@ -2,7 +2,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
-using Dalamud.Logging;
 using Dalamud.Plugin.Ipc;
 using Newtonsoft.Json;
 
@@ -40,7 +39,7 @@ public static class IpcProvider {
                 Plugin.IpcAssignedTitles.Add(playerCharacter.ObjectId, titleData);
                 plugin.RefreshNameplates();
             } catch (Exception ex) {
-                PluginLog.Error(ex, $"Error handling {nameof(SetCharacterTitle)} IPC.");
+                PluginService.Log.Error(ex, $"Error handling {nameof(SetCharacterTitle)} IPC.");
             }
         });
         

@@ -5,15 +5,14 @@ using System.IO.Compression;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Config;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
-using Dalamud.Logging;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -287,7 +286,7 @@ public class ConfigWindow : Window {
                             selectedCharacter.DefaultTitle = importedCharacter.DefaultTitle;
                         }
                     } catch (Exception ex) {
-                        PluginLog.Error(ex, "Error decoding clipboard text");
+                        PluginService.Log.Error(ex, "Error decoding clipboard text");
                     }
                 }
 

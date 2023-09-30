@@ -10,7 +10,6 @@ using Dalamud.Game.Config;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
-using Dalamud.Logging;
 using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
@@ -21,7 +20,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
-using Framework = Dalamud.Game.Framework;
+using IFramework = Dalamud.Plugin.Services.IFramework;
 
 namespace Honorific;
 
@@ -69,7 +68,7 @@ public unsafe class Plugin : IDalamudPlugin {
         };
         windowSystem.AddWindow(configWindow);
         
-        SignatureHelper.Initialise(this);
+        PluginService.HookProvider.InitializeFromAttributes(this);
         updateNameplateHook?.Enable();
         updateNameplateHookNpc?.Enable();
 
@@ -104,7 +103,7 @@ public unsafe class Plugin : IDalamudPlugin {
         try {
             CleanupNamePlate(namePlateInfo);
         } catch (Exception ex) {
-            PluginLog.LogError(ex, "Error in Cleanup of BattleChara Nameplate");
+            PluginService.Log.Error(ex, "Error in Cleanup of BattleChara Nameplate");
         }
         var r = updateNameplateHook!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, battleChara, numArrayIndex, stringArrayIndex);
         try {
@@ -121,7 +120,7 @@ public unsafe class Plugin : IDalamudPlugin {
                 AfterNameplateUpdate(namePlateInfo, battleChara);
             }
         } catch (Exception ex) {
-            PluginLog.Error(ex, "Error in AfterNameplateUpdate");
+            PluginService.Log.Error(ex, "Error in AfterNameplateUpdate");
         }
 
         return r;
@@ -130,7 +129,7 @@ public unsafe class Plugin : IDalamudPlugin {
     private void CleanupNamePlate(RaptureAtkModule.NamePlateInfo* namePlateInfo, bool force = false) {
         using var _ = PerformanceMonitors.CleanupProcessing.Start();
         if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectID.ObjectID)) {
-            PluginLog.Verbose($"Cleanup NamePlate: {namePlateInfo->Name.ToSeString().TextValue}");
+            PluginService.Log.Verbose($"Cleanup NamePlate: {namePlateInfo->Name.ToSeString().TextValue}");
             var title = namePlateInfo->Title.ToSeString();
             if (title.TextValue.Length > 0) {
                 title.Payloads.Insert(0, new TextPayload("《"));
@@ -145,7 +144,7 @@ public unsafe class Plugin : IDalamudPlugin {
         try {
             CleanupNamePlate(namePlateInfo, true);
         } catch (Exception ex) {
-            PluginLog.LogError(ex, "Error in Cleanup of NPC Nameplate");
+            PluginService.Log.Error(ex, "Error in Cleanup of NPC Nameplate");
         }
         return updateNameplateHookNpc!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, gameObject, numArrayIndex, stringArrayIndex);
     }
@@ -254,7 +253,7 @@ public unsafe class Plugin : IDalamudPlugin {
 
     public void Dispose() {
         IpcProvider.NotifyDisposing();
-        PluginLog.Verbose($"Dispose");
+        PluginService.Log.Verbose($"Dispose");
         isDisposing = true;
         DoRefresh();
         IpcProvider.DeInit();
@@ -273,7 +272,7 @@ public unsafe class Plugin : IDalamudPlugin {
     }
 
     private void DoRefresh() {
-        PluginLog.Verbose("Refreshing Nameplates");
+        PluginService.Log.Verbose("Refreshing Nameplates");
         foreach (var o in new[] { UiConfigOption.NamePlateNameTitleTypeSelf, UiConfigOption.NamePlateNameTitleTypeFriend, UiConfigOption.NamePlateNameTitleTypeParty, UiConfigOption.NamePlateNameTitleTypeAlliance, UiConfigOption.NamePlateNameTitleTypeOther }) {
             if (PluginService.GameConfig.TryGet(o, out bool v)) {
                 PluginService.GameConfig.Set(o, !v);
@@ -282,22 +281,22 @@ public unsafe class Plugin : IDalamudPlugin {
         }
     }
     
-    private void FrameworkOnUpdate(Framework framework) {
+    private void FrameworkOnUpdate(IFramework framework) {
         if (ipcCleanup.ElapsedMilliseconds > 5000) {
             ipcCleanup.Restart();
             if (IpcAssignedTitles.Count > 0) {
-                PluginLog.Verbose("Performing IPC Cleanup");
+                PluginService.Log.Verbose("Performing IPC Cleanup");
                 var objectIds = IpcAssignedTitles.Keys.ToList();
                 foreach (var chr in PluginService.Objects) {
                     if (chr is PlayerCharacter pc) {
                         if (objectIds.Remove(pc.ObjectId)) {
-                            PluginLog.Verbose($"Object#{pc.ObjectId:X} is still visible. ({chr.Name.TextValue})");
+                            PluginService.Log.Verbose($"Object#{pc.ObjectId:X} is still visible. ({chr.Name.TextValue})");
                         }
                     }
                 }
 
                 foreach (var o in objectIds) {
-                    PluginLog.Verbose($"Removing Object#{o:X} from IPC. No longer visible.");
+                    PluginService.Log.Verbose($"Removing Object#{o:X} from IPC. No longer visible.");
                     IpcAssignedTitles.Remove(o);
                 }
             }

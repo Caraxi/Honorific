@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
-using Dalamud.Game;
+using Dalamud.Plugin.Services;
 using ImGuiNET;
 
 namespace Honorific; 
@@ -75,7 +75,7 @@ public static class PerformanceMonitors {
     public static Monitor PlateProcessing { get; } = new("Per Plate Processing", false);
     public static Monitor CleanupProcessing { get; } = new("Cleanup Processing per Frame", true);
     
-    public static void LogFramePerformance(Framework framework) {
+    public static void LogFramePerformance(IFramework framework) {
         FrameProcessing.Update();
         CleanupProcessing.Update();
     }
