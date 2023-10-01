@@ -27,7 +27,7 @@ public class ConfigWindow : Window {
     private readonly PluginConfig config;
     private readonly Plugin plugin;
 
-    public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name) {
+    public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse) {
         this.config = config;
         this.plugin = plugin;
         
@@ -104,6 +104,7 @@ public class ConfigWindow : Window {
     private CharacterConfig? selectedCharacter;
     private string selectedName = string.Empty;
     private uint selectedWorld;
+    private float kofiButtonOffset;
 
     public override void Draw() {
         var modified = false;
@@ -114,7 +115,7 @@ public class ConfigWindow : Window {
             }
             ImGui.EndChild();
 
-            var charListSize = ImGui.GetItemRectSize();
+            var charListSize = ImGui.GetItemRectSize().X;
 
             if (PluginService.ClientState.LocalPlayer != null) {
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.User)) {
@@ -142,6 +143,20 @@ public class ConfigWindow : Window {
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Plugin Options");
             iconButtonSize = ImGui.GetItemRectSize() + ImGui.GetStyle().ItemSpacing;
+            
+            if (!config.HideKofi) {
+                ImGui.SameLine();
+                if (kofiButtonOffset > 0) ImGui.SetCursorPosX(MathF.Max(ImGui.GetCursorPosX(), charListSize - kofiButtonOffset + ImGui.GetStyle().WindowPadding.X));
+                if (ImGuiComponents.IconButtonWithText(FontAwesomeIcon.Coffee, "Support", new Vector4(1, 0.35f, 0.35f, 1f), new Vector4(1, 0.35f, 0.35f, 0.9f), new Vector4(1, 0.35f, 0.35f, 75f))) {
+                    Util.OpenLink("https://ko-fi.com/Caraxi");
+                }
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Support on Ko-fi");
+                }
+                kofiButtonOffset = ImGui.GetItemRectSize().X;
+            }
+            
+            
         }
         ImGui.EndGroup();
         
@@ -297,6 +312,7 @@ public class ConfigWindow : Window {
                 ImGui.Separator();
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
+                ImGui.Checkbox("Hide Ko-fi Support button", ref config.HideKofi);
                 
                 #if DEBUG
                 ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
