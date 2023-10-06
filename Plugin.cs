@@ -211,12 +211,15 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title, bool allowOriginal = true) {
+        title = null;
         if (isDisposing || runTime.ElapsedMilliseconds < 1000) {
+            if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
         if (IpcAssignedTitles.TryGetValue(playerCharacter.ObjectId, out title) && title.IsValid()) return true;
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+            if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
