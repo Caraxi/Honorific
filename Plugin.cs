@@ -241,6 +241,8 @@ public unsafe class Plugin : IDalamudPlugin {
                     break;
                 case TitleConditionType.GearSet:
                     if (playerCharacter != PluginService.ClientState.LocalPlayer) continue;
+                    var gearSetModule = RaptureGearsetModule.Instance();
+                    if (gearSetModule == null) continue;
                     if (RaptureGearsetModule.Instance()->CurrentGearsetIndex != cTitle.ConditionParam0) continue;
                     title = cTitle;
                     return true;
@@ -285,7 +287,7 @@ public unsafe class Plugin : IDalamudPlugin {
     }
 
     private void DoRefresh() {
-        PluginService.Log.Verbose("Refreshing Nameplates");
+        if (PluginService.GameGui.GetAddonByName("NamePlate") == nint.Zero) return; // Don't redraw nameplate if nameplate isn't visible.
         foreach (var o in new[] { UiConfigOption.NamePlateNameTitleTypeSelf, UiConfigOption.NamePlateNameTitleTypeFriend, UiConfigOption.NamePlateNameTitleTypeParty, UiConfigOption.NamePlateNameTitleTypeAlliance, UiConfigOption.NamePlateNameTitleTypeOther }) {
             if (PluginService.GameConfig.TryGet(o, out bool v)) {
                 PluginService.GameConfig.Set(o, !v);
@@ -295,6 +297,16 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     private void FrameworkOnUpdate(IFramework framework) {
+        if (PluginService.Condition.Any(
+                ConditionFlag.CreatingCharacter, 
+                ConditionFlag.WatchingCutscene,
+                ConditionFlag.WatchingCutscene78, 
+                ConditionFlag.BetweenAreas, 
+                ConditionFlag.BetweenAreas51, 
+                ConditionFlag.ChocoboRacing, 
+                ConditionFlag.LoggingOut, 
+                ConditionFlag.PlayingLordOfVerminion
+                )) return;
         CheckLocalTitle();
 
         if (ipcCleanup.ElapsedMilliseconds > 5000) {
@@ -325,6 +337,7 @@ public unsafe class Plugin : IDalamudPlugin {
         updateRequest.Reset();
         timeSinceUpdate.Restart();
         
+        PluginService.Log.Verbose("Refreshing Nameplates");
         for (var i = 2; i < 6; i += 2) {
             PluginService.Framework.RunOnTick(DoRefresh, delayTicks: i);
         }
@@ -336,11 +349,7 @@ public unsafe class Plugin : IDalamudPlugin {
         localTitleCheckStopwatch.Restart();
         var localPlayer = PluginService.ClientState.LocalPlayer;
         if (localPlayer == null) return;
-
-        if (!TryGetTitle(localPlayer, out var title)) {
-            title = null;
-        }
-
+        if (!TryGetTitle(localPlayer, out var title, false)) title = null;
         if (title != activeLocalTitle) {
             activeLocalTitle = title;
             if (activeLocalTitle == null) {

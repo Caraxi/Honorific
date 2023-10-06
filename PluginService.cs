@@ -17,4 +17,5 @@ public class PluginService {
     [PluginService] public static IGameConfig GameConfig { get; private set; } = null!;
     [PluginService] public static IGameInteropProvider HookProvider { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
+    [PluginService] public static IGameGui GameGui { get; private set; } = null!;
 }
