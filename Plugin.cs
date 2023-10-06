@@ -16,6 +16,7 @@ using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
@@ -52,6 +53,8 @@ public unsafe class Plugin : IDalamudPlugin {
     private readonly Stopwatch timeSinceUpdate = Stopwatch.StartNew();
     private readonly Stopwatch ipcCleanup = Stopwatch.StartNew();
 
+    private CustomTitle? activeLocalTitle;
+    
     public Plugin(DalamudPluginInterface pluginInterface) {
         pluginInterface.Create<PluginService>();
 
@@ -207,7 +210,7 @@ public unsafe class Plugin : IDalamudPlugin {
         return title;
     }
     
-    public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title) {
+    public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title, bool allowOriginal = true) {
         if (isDisposing || runTime.ElapsedMilliseconds < 1000) {
             title = GetOriginalTitle(playerCharacter);
             return true;
@@ -236,12 +239,22 @@ public unsafe class Plugin : IDalamudPlugin {
                         return true;
                     }
                     break;
+                case TitleConditionType.GearSet:
+                    if (playerCharacter != PluginService.ClientState.LocalPlayer) continue;
+                    if (RaptureGearsetModule.Instance()->CurrentGearsetIndex != cTitle.ConditionParam0) continue;
+                    title = cTitle;
+                    return true;
             }
         }
         
         if (characterConfig.DefaultTitle.Enabled) {
             title = characterConfig.DefaultTitle;
             return true;
+        }
+
+        if (!allowOriginal) {
+            title = null;
+            return false;
         }
         
         title = GetOriginalTitle(playerCharacter);
@@ -282,6 +295,8 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     private void FrameworkOnUpdate(IFramework framework) {
+        CheckLocalTitle();
+
         if (ipcCleanup.ElapsedMilliseconds > 5000) {
             ipcCleanup.Restart();
             if (IpcAssignedTitles.Count > 0) {
@@ -312,6 +327,29 @@ public unsafe class Plugin : IDalamudPlugin {
         
         for (var i = 2; i < 6; i += 2) {
             PluginService.Framework.RunOnTick(DoRefresh, delayTicks: i);
+        }
+    }
+
+    private Stopwatch localTitleCheckStopwatch = Stopwatch.StartNew();
+    private void CheckLocalTitle() {
+        if (localTitleCheckStopwatch.ElapsedMilliseconds < 1000) return;
+        localTitleCheckStopwatch.Restart();
+        var localPlayer = PluginService.ClientState.LocalPlayer;
+        if (localPlayer == null) return;
+
+        if (!TryGetTitle(localPlayer, out var title)) {
+            title = null;
+        }
+
+        if (title != activeLocalTitle) {
+            activeLocalTitle = title;
+            if (activeLocalTitle == null) {
+                PluginService.Log.Debug($"local player title removed.");
+            } else {
+                PluginService.Log.Debug($"local player title changed: {activeLocalTitle.DisplayTitle}");
+            }
+            
+            RefreshNameplates();
         }
     }
 

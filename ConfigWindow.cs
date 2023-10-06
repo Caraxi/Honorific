@@ -13,9 +13,12 @@ using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
+using Dalamud.Memory;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using FFXIVClientStructs.Interop;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using Newtonsoft.Json;
@@ -478,6 +481,36 @@ public class ConfigWindow : Window {
                             ImGui.EndCombo();
                         }
                         
+                        break;
+                    }
+                    case TitleConditionType.GearSet: {
+                        unsafe {
+                            var gearSetModule = RaptureGearsetModule.Instance();
+
+                            var currentGearSetName = string.Empty;
+                            var currentGearSet = gearSetModule->GetGearset(title.ConditionParam0);
+                            if (currentGearSet != null && currentGearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) currentGearSetName = MemoryHelper.ReadString(new nint(currentGearSet->Name), 48);
+
+                            if (string.IsNullOrWhiteSpace(currentGearSetName)) currentGearSetName = $"Gear Set #{title.ConditionParam0+1:00}";
+
+                            ImGui.SameLine();
+                            if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                            ImGui.SetNextItemWidth(-1);
+                            if (ImGui.BeginCombo("##conditionGearset", $"[{title.ConditionParam0+1}] {currentGearSetName}")) {
+                                for (var gearSetIndex = 0; gearSetIndex < 100; gearSetIndex++) {
+                                    var name = string.Empty;
+                                    var gearSet = gearSetModule->GetGearset(gearSetIndex);
+                                    if (gearSet != null && gearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) name = MemoryHelper.ReadString(new nint(gearSet->Name), 48);
+                                    if (string.IsNullOrWhiteSpace(name)) name = $"Gear Set #{gearSetIndex+1:00}";
+
+                                    if (ImGui.Selectable($"[{gearSetIndex+1:00}] {name}", gearSetIndex == title.ConditionParam0)) {
+                                        title.ConditionParam0 = gearSetIndex;
+                                    }
+                                }
+                                
+                                ImGui.EndCombo();
+                            }
+                        }
                         break;
                     }
                 }

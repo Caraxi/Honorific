@@ -10,4 +10,7 @@ public enum TitleConditionType {
     
     [Description("Role")]
     JobRole,
+    
+    [Description("Gear Set")]
+    GearSet,
 }
