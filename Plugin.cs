@@ -6,7 +6,6 @@ using System.Reflection;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
-using Dalamud.Game.Config;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
@@ -136,7 +135,7 @@ public unsafe class Plugin : IDalamudPlugin {
             var title = namePlateInfo->Title.ToSeString();
             if (title.TextValue.Length > 0) {
                 title.Payloads.Insert(0, new TextPayload("《"));
-                title.Payloads.Add( new TextPayload("《"));
+                title.Payloads.Add( new TextPayload("》"));
             }
             namePlateInfo->DisplayTitle.SetString(title.EncodeNullTerminated());
             ModifiedNamePlates.Remove((ulong)namePlateInfo);
@@ -207,6 +206,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var genderedTitle = character->GameObject.Gender == 0 ? titleData.Masculine : titleData.Feminine;
         title.Title = genderedTitle.ToDalamudString().TextValue;
         title.IsPrefix = titleData.IsPrefix;
+        title.IsOriginal = true;
         return title;
     }
     
@@ -290,11 +290,16 @@ public unsafe class Plugin : IDalamudPlugin {
     }
 
     private void DoRefresh() {
-        if (PluginService.GameGui.GetAddonByName("NamePlate") == nint.Zero) return; // Don't redraw nameplate if nameplate isn't visible.
-        foreach (var o in new[] { UiConfigOption.NamePlateNameTitleTypeSelf, UiConfigOption.NamePlateNameTitleTypeFriend, UiConfigOption.NamePlateNameTitleTypeParty, UiConfigOption.NamePlateNameTitleTypeAlliance, UiConfigOption.NamePlateNameTitleTypeOther }) {
-            if (PluginService.GameConfig.TryGet(o, out bool v)) {
-                PluginService.GameConfig.Set(o, !v);
-                PluginService.GameConfig.Set(o, v);
+        var addonPtr = PluginService.GameGui.GetAddonByName("NamePlate");
+        if (addonPtr == nint.Zero) return; // Don't redraw nameplate if nameplate isn't visible.
+        var namePlateInfoArray = &RaptureAtkModule.Instance()->NamePlateInfoArray;
+        for (var i = 0; i < 50; i++) {
+            var namePlateInfo = namePlateInfoArray + i;
+            if (ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
+                PluginService.Log.Verbose($"Force Redraw NamePlate#{i:00}");
+                namePlateInfo->ObjectID.ObjectID = 0;
+                CleanupNamePlate(namePlateInfo, true);
+                
             }
         }
     }
@@ -334,16 +339,12 @@ public unsafe class Plugin : IDalamudPlugin {
         
         if (!updateRequest.IsRunning) return;
         if (runTime.ElapsedMilliseconds < 2000) return;
-        if (timeSinceUpdate.ElapsedMilliseconds < 1000) return;
-        if (updateRequest.ElapsedMilliseconds < 250) return;
+        if (timeSinceUpdate.ElapsedMilliseconds < 50) return;
+        if (updateRequest.ElapsedMilliseconds < 50) return;
         
         updateRequest.Reset();
         timeSinceUpdate.Restart();
-        
-        PluginService.Log.Verbose("Refreshing Nameplates");
-        for (var i = 2; i < 6; i += 2) {
-            PluginService.Framework.RunOnTick(DoRefresh, delayTicks: i);
-        }
+        DoRefresh();
     }
 
     private Stopwatch localTitleCheckStopwatch = Stopwatch.StartNew();

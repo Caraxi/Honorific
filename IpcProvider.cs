@@ -71,7 +71,8 @@ public static class IpcProvider {
     }
 
     internal static void ChangedLocalCharacterTitle(TitleData? title) {
-        var json = title == null ? string.Empty : JsonConvert.SerializeObject(title);
+        var json = title == null || title.IsOriginal ? string.Empty : JsonConvert.SerializeObject(title);
+        PluginService.Log.Verbose($"Report Local Title Changed: {json}");
         LocalCharacterTitleChanged?.SendMessage(json);
     }
 

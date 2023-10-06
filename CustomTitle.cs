@@ -8,6 +8,7 @@ namespace Honorific;
 public class TitleData {
     public string? Title = string.Empty;
     public bool IsPrefix;
+    public bool IsOriginal;
     public Vector3? Color;
     public Vector3? Glow;
 
@@ -16,18 +17,21 @@ public class TitleData {
         IsPrefix = title.IsPrefix,
         Color = title.Color,
         Glow = title.Glow,
+        IsOriginal = title.IsOriginal
     };
     public static implicit operator CustomTitle(TitleData data) => new() {
         Title = data.Title,
         IsPrefix = data.IsPrefix,
         Color = data.Color,
         Glow = data.Glow,
+        IsOriginal = data.IsOriginal,
     };
 }
 
 public class CustomTitle {
     public string? Title = string.Empty;
     public bool IsPrefix;
+    public bool IsOriginal;
     
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
