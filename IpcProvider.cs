@@ -37,7 +37,6 @@ public static class IpcProvider {
                 var titleData = JsonConvert.DeserializeObject<TitleData>(titleDataJson);
                 if (titleData == null) return;
                 Plugin.IpcAssignedTitles.Add(playerCharacter.ObjectId, titleData);
-                plugin.RefreshNameplates();
             } catch (Exception ex) {
                 PluginService.Log.Error(ex, $"Error handling {nameof(SetCharacterTitle)} IPC.");
             }
@@ -62,7 +61,6 @@ public static class IpcProvider {
         ClearCharacterTitle.RegisterAction(character => {
             if (character is not PlayerCharacter playerCharacter) return;
             Plugin.IpcAssignedTitles.Remove(playerCharacter.ObjectId);
-            plugin.RefreshNameplates();
         });
 
         LocalCharacterTitleChanged = PluginService.PluginInterface.GetIpcProvider<string, object>($"{NameSpace}.{nameof(LocalCharacterTitleChanged)}");
@@ -81,6 +79,7 @@ public static class IpcProvider {
     }
 
     internal static void NotifyDisposing() {
+        ChangedLocalCharacterTitle(null);
         Disposing?.SendMessage();
     }
 

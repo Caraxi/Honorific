@@ -247,7 +247,6 @@ public class ConfigWindow : Window {
                     ImGui.Text("This character's title is currently assigned by another plugin.");
                     if (Plugin.IsDebug && ImGui.Button("Clear IPC Assignment")) {
                         Plugin.IpcAssignedTitles.Remove(activePlayer.ObjectId);
-                        plugin.RefreshNameplates();
                     }
                     
                     ImGui.BeginDisabled();
@@ -349,7 +348,7 @@ public class ConfigWindow : Window {
                         ImGui.TableHeadersRow();
                         unsafe {
                             var ratkm = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
-                            var npi = &ratkm->NamePlateInfoArray;
+                            var npi = (NamePlateInfo*) &ratkm->NamePlateInfoArray;
                             for (var i = 0; i < 50 && i < ratkm->NameplateInfoCount; i++, npi++) {
                                 if (npi->ObjectID.ObjectID == 0 && !ImGui.GetIO().KeyShift) continue;
                                 var color = plugin.ModifiedNamePlates.ContainsKey((ulong)npi);
@@ -379,9 +378,6 @@ public class ConfigWindow : Window {
             
         }
         ImGui.EndChild();
-        if (modified) {
-            plugin.RefreshNameplates();
-        }
     }
 
     private void DrawCharacterView(CharacterConfig? characterConfig, ref bool modified) {
