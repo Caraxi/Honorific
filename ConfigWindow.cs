@@ -10,6 +10,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Config;
 using Dalamud.Interface;
+using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
@@ -18,7 +19,6 @@ using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
-using FFXIVClientStructs.Interop;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using Newtonsoft.Json;
@@ -333,18 +333,46 @@ public class ConfigWindow : Window {
                         if (ImGui.Button($"Test CLEAR IPC for '{target.Name.TextValue}'")) {
                             PluginService.PluginInterface.GetIpcSubscriber<Character, object>("Honorific.ClearCharacterTitle").InvokeAction(pc);
                         }
+                        ImGui.Separator();
                     }
 
-                    ImGui.Separator();
 
-                    ImGui.Text("Modified Nameplates:");
-                    foreach (var (m, o) in plugin.ModifiedNamePlates) {
+                    if (ImGui.BeginTable("nameplates", 5)) {
+                        
+                        ImGui.TableSetupColumn("Index", ImGuiTableColumnFlags.WidthFixed, ImGuiHelpers.GlobalScale * 40);
+                        ImGui.TableSetupColumn("ObjectID", ImGuiTableColumnFlags.WidthFixed, ImGuiHelpers.GlobalScale * 120);
+                        ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, ImGuiHelpers.GlobalScale * 180);
+                        ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, ImGuiHelpers.GlobalScale * 180);
+                        ImGui.TableSetupColumn("Data", ImGuiTableColumnFlags.WidthStretch);
+
+                        
+                        ImGui.TableHeadersRow();
                         unsafe {
-                            var npi = (RaptureAtkModule.NamePlateInfo*)m;
-                            ImGui.PushID(new nint(npi));
-                            Util.ShowStruct(npi);
-                            ImGui.PopID();
+                            var ratkm = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
+                            var npi = &ratkm->NamePlateInfoArray;
+                            for (var i = 0; i < 50 && i < ratkm->NameplateInfoCount; i++, npi++) {
+                                if (npi->ObjectID.ObjectID == 0 && !ImGui.GetIO().KeyShift) continue;
+                                var color = plugin.ModifiedNamePlates.ContainsKey((ulong)npi);
+                                ImGui.PushID($"namePlateInfo_{i}");
+                                if (color) ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudOrange);
+                                ImGui.TableNextColumn();
+                                ImGui.Text($"{i:00}");
+                                ImGui.TableNextColumn();
+                                ImGui.Text($"{npi->ObjectID.ObjectID:X8}:{npi->ObjectID.Type:X2}");
+                                ImGui.TableNextColumn();
+                                var name = npi->Name.ToSeString();
+                                ImGui.Text($"{name.TextValue}");
+                                ImGui.TableNextColumn();
+                                var title = npi->DisplayTitle.ToSeString();
+                                ImGui.Text($"{title.TextValue}");
+                                if (color) ImGui.PopStyleColor();
+                                ImGui.TableNextColumn();
+                                Util.ShowStruct(npi);
+                                ImGui.PopID();
+                            }
                         }
+                        
+                        ImGui.EndTable();
                     }
                 }
             }
