@@ -314,6 +314,7 @@ public class ConfigWindow : Window {
                 ImGui.Separator();
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
+                ImGui.Checkbox("Display titles in 'Examine' window.", ref config.ApplyToInspect);
                 ImGui.Checkbox("Hide Ko-fi Support button", ref config.HideKofi);
                 
                 #if DEBUG

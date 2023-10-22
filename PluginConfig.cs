@@ -11,6 +11,7 @@ public class PluginConfig : IPluginConfiguration {
     public bool ShowColoredTitles = true;
     public bool DebugOpenOnStatup = true;
     public bool HideKofi = false;
+    public bool ApplyToInspect = true;
 
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {
         characterConfig = null;

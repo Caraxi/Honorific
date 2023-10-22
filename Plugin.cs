@@ -3,12 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
+using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
@@ -20,6 +24,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
+using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 
 namespace Honorific;
 
@@ -64,6 +69,7 @@ public unsafe class Plugin : IDalamudPlugin {
         windowSystem.AddWindow(configWindow);
         
         PluginService.HookProvider.InitializeFromAttributes(this);
+        PluginService.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "CharacterInspect", RefreshCharacterInspect);
         updateNameplateHook?.Enable();
         updateNameplateHookNpc?.Enable();
 
@@ -80,6 +86,40 @@ public unsafe class Plugin : IDalamudPlugin {
         #if DEBUG
         IsDebug = true;
         #endif
+    }
+    
+    private void RefreshCharacterInspect(AddonEvent type, AddonArgs args) {
+        if (!Config.ApplyToInspect) return;
+
+        var atkUnitBase = (AtkUnitBase*)args.Addon;
+        
+        
+        SeString? GetString(int index) {
+            var atkValues = new ReadOnlySpan<AtkValue>(atkUnitBase->AtkValues, atkUnitBase->AtkValuesCount);
+            if (atkValues.Length <= index) return null;
+            if (atkValues[index].Type is not (ValueType.String or ValueType.String8 or ValueType.AllocatedString)) return null;
+            return MemoryHelper.ReadSeStringNullTerminated(new nint(atkValues[index].String));
+        }
+
+
+        var name = GetString(3);
+        if (name == null || string.IsNullOrWhiteSpace(name.TextValue)) return;
+
+        var server = GetString(36);
+        if (server == null || string.IsNullOrWhiteSpace(server.TextValue)) return;
+
+        var world = PluginService.Data.GetExcelSheet<World>()?.FirstOrDefault(w => w.IsPublic && w.Name.RawString == server.TextValue);
+        if (world == null) return;
+
+        var obj = PluginService.Objects.FirstOrDefault(c => c is PlayerCharacter pc && c.Name.TextValue == name.TextValue && pc.HomeWorld.Id == world.RowId);
+        if (obj is not PlayerCharacter playerCharacter) return;
+
+        if (!TryGetTitle(playerCharacter, out var title) || title == null) return;
+        var nameNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 7U : 6U);
+        var titleNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 6U : 7U);
+        if (nameNode == null || titleNode == null) return;
+        nameNode->SetText(name.Encode());
+        titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles).Encode());
     }
 
     private void OnCommand(string command, string args) {
