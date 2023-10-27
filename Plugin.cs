@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
@@ -51,8 +52,10 @@ public unsafe class Plugin : IDalamudPlugin {
     internal static bool IsDebug;
 
     public Dictionary<ulong, uint> ModifiedNamePlates = new();
+    private readonly CancellationTokenSource pluginLifespan;
 
     public Plugin(DalamudPluginInterface pluginInterface) {
+        pluginLifespan = new CancellationTokenSource();
         pluginInterface.Create<PluginService>();
 
         titleSheet = PluginService.Data.GetExcelSheet<Title>();
@@ -82,6 +85,7 @@ public unsafe class Plugin : IDalamudPlugin {
         });
         IpcProvider.Init(this);
         IpcProvider.NotifyReady();
+        PluginService.Framework.RunOnTick(DoIpcCleanup, delay: TimeSpan.FromSeconds(5), cancellationToken: pluginLifespan.Token);
 
         #if DEBUG
         IsDebug = true;
@@ -299,10 +303,40 @@ public unsafe class Plugin : IDalamudPlugin {
         return true;
     }
 
+    private void DoIpcCleanup() {
+        using var _ = PerformanceMonitors.Run("IPC Cleanup");
+        PluginService.Framework.RunOnTick(DoIpcCleanup, delay: TimeSpan.FromSeconds(5), cancellationToken: pluginLifespan.Token);
+        if (pluginLifespan.IsCancellationRequested) return;
+        if (!PluginService.Framework.IsInFrameworkUpdateThread) return;
+        
+        if (IpcAssignedTitles.Count > 0) {
+            PluginService.Log.Verbose("Performing IPC Cleanup");
+            
+            if (!PluginService.ClientState.IsLoggedIn) {
+                IpcAssignedTitles.Clear();
+                return;
+            }
+           
+            var objectIds = IpcAssignedTitles.Keys.ToList();
+            foreach (var chr in PluginService.Objects) {
+                if (chr is PlayerCharacter pc) {
+                    if (objectIds.Remove(pc.ObjectId)) {
+                        PluginService.Log.Verbose($"Object#{pc.ObjectId:X} is still visible. ({chr.Name.TextValue})");
+                    }
+                }
+            }
+
+            foreach (var o in objectIds) {
+                PluginService.Log.Debug($"Removing Object#{o:X} from IPC. No longer visible.");
+                IpcAssignedTitles.Remove(o);
+            }
+        }
+    }
 
     private bool isDisposing;
 
     public void Dispose() {
+        pluginLifespan.Cancel();
         IpcProvider.NotifyDisposing();
         PluginService.Log.Verbose($"Dispose");
         isDisposing = true;
