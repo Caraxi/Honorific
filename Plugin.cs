@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Threading;
 using Dalamud.Game.Addon.Lifecycle;
@@ -22,6 +24,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using ImGuiNET;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
@@ -131,6 +134,164 @@ public unsafe class Plugin : IDalamudPlugin {
             IsDebug = true;
             return;
         }
+
+        var splitArgs = args.Trim().Split(' ', 3, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        void HelpForceSet() {
+            PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific force set ").AddUiForeground("<title>", 35).AddText(" | ").AddUiForeground("[prefix/suffix]", 52).AddText(" | ").AddUiForeground("#<HexColor>", 52).AddText(" | ").AddUiForeground("#<HexGlow>", 52).Build(), Name);
+        }
+        void HelpForceClear() {
+            PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific force clear").Build(), Name);
+        }
+        
+        
+        if (splitArgs.Length > 0) {
+            switch (splitArgs[0]) {
+                case "force" when splitArgs.Length > 1 && splitArgs[1].ToLower() is "clear": {
+                    var character = PluginService.ClientState.LocalPlayer;
+                    if (character == null) {
+                        PluginService.Chat.PrintError($"Unable to use set command. Character not found.", Name);
+                        return;
+                    }
+                    
+                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                        PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
+                        return;
+                    }
+
+                    characterConfig.Override.Enabled = false;
+                    characterConfig.Override.Title = string.Empty;
+                    return;
+                }
+                
+                case "force" when splitArgs.Length > 1 && splitArgs[1].ToLower() is "set": {
+                    var character = PluginService.ClientState.LocalPlayer;
+                    if (character == null) {
+                        PluginService.Chat.PrintError($"Unable to use set command. Character not found.", Name);
+                        return;
+                    }
+                    
+                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                        PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
+                        return;
+                    }
+                    
+                    if (splitArgs.Length != 3) {
+                        HelpForceSet();
+                        return;
+                    }
+
+                    var setArgs = splitArgs[2].Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                    if (setArgs.Length == 0) {
+                        HelpForceSet();
+                        return;
+                    }
+                    
+                    string? titleText = null;
+                    bool? prefix = null;
+                    Vector3? color = null;
+                    Vector3? glow = null;
+                    var silent = false;
+                    
+                    foreach (var a in setArgs) {
+                        if (titleText == null) {
+                            titleText = a;
+
+                            if (titleText.Length > 25) {
+                                PluginService.Chat.PrintError($"Title is too long: '{a}'. (Max 25)", Name);
+                                return;
+                            }
+                            
+                            continue;
+                        }
+
+                        var arg = a.ToLower();
+
+                        var colorArg = arg.Skip(arg.StartsWith('#') ? 1 : 0).ToArray();
+                        
+                        if (colorArg.Length == 6 && colorArg.All(chr => chr is >= '0' and <= '9' or >= 'a' and <= 'f')) {
+
+                            if (color != null && glow != null) {
+                                PluginService.Chat.PrintError($"Duplicate Option in Set: '{a}'", Name);
+                                HelpForceSet();
+                                return;
+                            }
+                            
+                            var rHex = string.Join(null, colorArg.Skip(0).Take(2));
+                            var gHex = string.Join(null, colorArg.Skip(2).Take(2));
+                            var bHex = string.Join(null, colorArg.Skip(4).Take(2));
+                            
+                            
+                            if (byte.TryParse(rHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo, out var r) && 
+                                byte.TryParse(gHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo, out var g) && 
+                                byte.TryParse(bHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo,  out var b)) {
+
+                                var c = new Vector3(r / 255f, g / 255f, b / 255f);
+                                if (color == null) {
+                                    color = c;
+                                    continue;
+                                }
+
+                                glow = c;
+                                continue;
+                            }
+                        }
+                        
+                        if (arg is "p" or "prefix" or "pre") {
+                            if (prefix != null) {
+                                PluginService.Chat.PrintError($"Duplicate Option in Set: '{a}'", Name);
+                                HelpForceSet();
+                                return;
+                            }
+                            
+                            prefix = true;
+                            continue;
+                        }
+
+                        if (arg is "s" or "suffix") {
+                            if (prefix != null) {
+                                PluginService.Chat.PrintError($"Duplicate Option in Set: '{a}'", Name);
+                                HelpForceSet();
+                                return;
+                            }
+                            prefix = false;
+                            continue;
+                        }
+
+                        if (arg is "silent") {
+                            silent = true;
+                            continue;
+                        }
+                        
+                        PluginService.Chat.PrintError($"Invalid Option in Set: '{a}'", Name);
+                        HelpForceSet();
+                        return;
+                    }
+                    
+                    characterConfig.Override.Title = titleText;
+                    characterConfig.Override.Color = color;
+                    characterConfig.Override.Glow = glow;
+                    characterConfig.Override.IsPrefix = prefix ?? false;
+                    characterConfig.Override.Enabled = true;
+
+                    if (!silent) {
+                        PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString()).Build());
+                    }
+                    
+                    return;
+                }
+                case "help":
+                    goto ShowHelp;
+                default: 
+                    PluginService.Chat.PrintError($"Invalid Subcommand: '{args}'", Name);
+                    ShowHelp:
+                    HelpForceSet();
+                    HelpForceClear();
+                    return;
+            }
+        }
+
         configWindow.IsOpen = !configWindow.IsOpen;
     }
     
@@ -258,6 +419,11 @@ public unsafe class Plugin : IDalamudPlugin {
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
             if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
+            return true;
+        }
+        
+        if (characterConfig.Override.Enabled) {
+            title = characterConfig.Override;
             return true;
         }
         

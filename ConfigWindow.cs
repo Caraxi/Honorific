@@ -394,7 +394,31 @@ public class ConfigWindow : Window {
             }
             ImGui.TableSetupColumn("Condition", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
+            
+            if (characterConfig.Override.Enabled) {
+                ImGui.PushID($"title_override");
+                // Override Title
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                if (ImGui.Button("Clear##ClearOverride", new Vector2(ImGui.GetContentRegionAvail().X, checkboxSize))) {
+                    characterConfig.Override.Enabled = false;
+                    characterConfig.Override.Title = string.Empty;
+                }
 
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Clear the forced title.");
+                }
+                
+                DrawTitleCommon(characterConfig.Override, ref modified);
+                ImGui.TextDisabled("Override Title");
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Title has been assigned using \"/honorific force set\" command.");
+                }
+                ImGui.PopID();
+                ImGui.TableNextRow();
+                ImGui.TableNextRow();
+            }
+            
             var deleteIndex = -1;
             var moveUp = -1;
             for (var i = 0; i < characterConfig.CustomTitles.Count; i++) {

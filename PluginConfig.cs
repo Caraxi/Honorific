@@ -27,4 +27,11 @@ public class PluginConfig : IPluginConfiguration {
 
         return false;
     }
+
+    public bool TryGetOrAddCharacter(string name, uint world, out CharacterConfig? characterConfig) {
+        if (TryGetCharacterConfig(name, world, out characterConfig)) {
+            return true;
+        }
+        return TryAddCharacter(name, world) && TryGetCharacterConfig(name, world, out characterConfig);
+    }
 }
