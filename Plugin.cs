@@ -88,10 +88,21 @@ public unsafe class Plugin : IDalamudPlugin {
         IpcProvider.Init(this);
         IpcProvider.NotifyReady();
         PluginService.Framework.RunOnTick(DoIpcCleanup, delay: TimeSpan.FromSeconds(5), cancellationToken: pluginLifespan.Token);
+        PluginService.ClientState.TerritoryChanged += OnTerritoryChanged;
 
         #if DEBUG
         IsDebug = true;
         #endif
+    }
+
+    private void OnTerritoryChanged(ushort _) {
+        foreach (var (_, characters) in Config.WorldCharacterDictionary) {
+            foreach (var (_, character) in characters) {
+                if (character is { UseRandom: true, RandomOnZoneChange: true }) {
+                    character.ActiveTitle = null;
+                }
+            }
+        }
     }
     
     private void RefreshCharacterInspect(AddonEvent type, AddonArgs args) {

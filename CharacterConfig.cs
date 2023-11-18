@@ -10,6 +10,7 @@ public class CharacterConfig {
     public List<CustomTitle> CustomTitles = new();
 
     public bool UseRandom = false;
+    public bool RandomOnZoneChange = false;
 
     [JsonIgnore] public CustomTitle? ActiveTitle;
 

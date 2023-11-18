@@ -786,10 +786,16 @@ public class ConfigWindow : Window {
             ImGui.TextDisabled("Note: The default title will never be included in the random title selection.");
             ImGui.EndTooltip();
         }
-
-        if (characterConfig.UseRandom && characterConfig.ActiveTitle != null) {
+        
+        if (characterConfig is { UseRandom: true, ActiveTitle: not null }) {
             ImGui.SameLine();
             if (ImGui.Button("Next Random")) characterConfig.ActiveTitle = null;
+        }
+
+        if (characterConfig.UseRandom) {
+            using (ImRaii.PushIndent()) {
+                ImGui.Checkbox("Select a new random title on zone change", ref characterConfig.RandomOnZoneChange);
+            }
         }
     }
 
