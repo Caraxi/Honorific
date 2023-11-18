@@ -42,8 +42,8 @@ public unsafe class Plugin : IDalamudPlugin {
     [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 74 24 ??", DetourName = nameof(UpdateNameplateNpcDetour))]
     private Hook<UpdateNameplateNpcDelegate>? updateNameplateHookNpc;
 
-    private delegate void* UpdateNameplateDelegate(RaptureAtkModule* raptureAtkModule, NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex);
-    private delegate void* UpdateNameplateNpcDelegate(RaptureAtkModule* raptureAtkModule, NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex);
+    private delegate void* UpdateNameplateDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex);
+    private delegate void* UpdateNameplateNpcDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex);
     
     private readonly ConfigWindow configWindow;
     private readonly WindowSystem windowSystem;
@@ -373,7 +373,7 @@ public unsafe class Plugin : IDalamudPlugin {
         configWindow.IsOpen = !configWindow.IsOpen;
     }
     
-    public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
+    public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
         try {
             CleanupNamePlate(namePlateInfo);
         } catch (Exception ex) {
@@ -400,7 +400,7 @@ public unsafe class Plugin : IDalamudPlugin {
         return r;
     }
 
-    private void CleanupNamePlate(NamePlateInfo* namePlateInfo, bool force = false) {
+    private void CleanupNamePlate(RaptureAtkModule.NamePlateInfo* namePlateInfo, bool force = false) {
         
         if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectID.ObjectID)) {
             using var _ = PerformanceMonitors.Run("Cleanup");
@@ -411,12 +411,12 @@ public unsafe class Plugin : IDalamudPlugin {
                 title.Payloads.Add( new TextPayload("》"));
             }
             namePlateInfo->DisplayTitle.SetString(title.EncodeNullTerminated());
-            namePlateInfo->IsRedrawRequested = true;
+            namePlateInfo->IsDirty = true;
             ModifiedNamePlates.Remove((ulong)namePlateInfo);
         }
     }
     
-    public void* UpdateNameplateNpcDetour(RaptureAtkModule* raptureAtkModule, NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex) {
+    public void* UpdateNameplateNpcDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex) {
         try {
             CleanupNamePlate(namePlateInfo, true);
         } catch (Exception ex) {
@@ -425,7 +425,7 @@ public unsafe class Plugin : IDalamudPlugin {
         return updateNameplateHookNpc!.Original(raptureAtkModule, namePlateInfo, numArray, stringArray, gameObject, numArrayIndex, stringArrayIndex);
     }
 
-    public void AfterNameplateUpdate(NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
+    public void AfterNameplateUpdate(RaptureAtkModule.NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
         if (namePlateInfo->ObjectID.ObjectID == 0) return;
         using var fp = PerformanceMonitors.Run("AfterNameplateUpdate");
         var gameObject = &battleChara->Character.GameObject;
@@ -457,7 +457,7 @@ public unsafe class Plugin : IDalamudPlugin {
         if (isPrefix != title.IsPrefix) titleChanged = true;
 
         if (titleChanged) {
-            namePlateInfo->IsRedrawRequested = true;
+            namePlateInfo->IsDirty = true;
             if (ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
                 ModifiedNamePlates[(ulong)namePlateInfo] = namePlateInfo->ObjectID.ObjectID;
             } else {

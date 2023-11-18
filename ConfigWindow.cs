@@ -353,7 +353,7 @@ public class ConfigWindow : Window {
                         ImGui.TableHeadersRow();
                         unsafe {
                             var ratkm = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
-                            var npi = (NamePlateInfo*) &ratkm->NamePlateInfoArray;
+                            var npi = &ratkm->NamePlateInfoArray;
                             for (var i = 0; i < 50 && i < ratkm->NameplateInfoCount; i++, npi++) {
                                 if (npi->ObjectID.ObjectID == 0 && !ImGui.GetIO().KeyShift) continue;
                                 var color = plugin.ModifiedNamePlates.ContainsKey((ulong)npi);
