@@ -414,15 +414,18 @@ public class ConfigWindow : Window {
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
                                     ImGui.SameLine();
-                                    ImGui.TextColored(ImGuiColors.ParsedPink, "[prefix|siffix]");
+                                    ImGui.TextColored(ImGuiColors.ParsedPink, "[prefix|suffix]");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("(Optional) Prefix or Suffix\nSets the title to prefix or suffix position.");
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.ParsedPink, "#<HexColor>");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("(Optional) #RRGGBB hex colour code for the main colour of the title.");
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.ParsedPink, "#<HexGlow>");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("(Optional) #RRGGBB hex colour code for the glow colour of the title.\nCan only be used if the main colour is set.");
                                 }
                                 ImGui.TextColored(ImGuiColors.DalamudWhite2, "/honorific force clear");
                                 
