@@ -9,10 +9,12 @@ using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Config;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Utility;
@@ -109,6 +111,8 @@ public class ConfigWindow : Window {
     private uint selectedWorld;
     private float kofiButtonOffset;
 
+    private CustomTitle forcedTitleCommandGeneratorTitle = new();
+    
     public override void Draw() {
         var modified = false;
         ImGui.BeginGroup();
@@ -375,6 +379,111 @@ public class ConfigWindow : Window {
                         ImGui.EndTable();
                     }
                 }
+
+
+                if (ImGui.CollapsingHeader("Commands")) {
+                    
+                    using (ImRaii.PushIndent()) {
+                        if (ImGui.CollapsingHeader("Toggle Titles", ImGuiTreeNodeFlags.DefaultOpen)) {
+                            using (ImRaii.PushIndent()) {
+                                using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero)) {
+                                    ImGui.TextColored(ImGuiColors.DalamudWhite2, "/honorific title");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudOrange, " <enable|disable|toggle>");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Any one of Enable, Disable, or Toggle");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudViolet, " <title>");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Any configured title on the active character.\nIf multiple titles are configured with the same text, only the first listed will be used.\n\nA titles Unique ID may also be used, which can be obtained by right clicking the enable checkbox.");
+                                }
+                        
+                                ImGui.Spacing();
+                                ImGui.Text("Enable, Disable, or Toggle a title on the current character.");
+                            }
+                        }
+                        
+                        if (ImGui.CollapsingHeader("Forced Titles", ImGuiTreeNodeFlags.DefaultOpen)) {
+                            using (ImRaii.PushIndent()) {
+                                
+                                
+                                using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero)) {
+                                    
+                                    ImGui.TextColored(ImGuiColors.DalamudWhite2, "/honorific force set");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudViolet, " <title>");
+                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Title Text");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.ParsedPink, "[prefix|siffix]");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.ParsedPink, "#<HexColor>");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.DalamudWhite2, " | ");
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(ImGuiColors.ParsedPink, "#<HexGlow>");
+                                }
+                                ImGui.TextColored(ImGuiColors.DalamudWhite2, "/honorific force clear");
+                                
+                                ImGui.Spacing();
+
+                                ImGui.Text("Sets a title that will override all other configured titles.");
+
+
+                                if (ImGui.TreeNode("Command Generator")) {
+                                    
+                                    var b = false;
+                                
+                                    if (ImGui.BeginTable("CommandGeneratorTitleTable", 5)) {
+                                        var t = forcedTitleCommandGeneratorTitle;
+                                        ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
+                                        ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                                        ImGui.TableSetupColumn("Colour", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                                        ImGui.TableSetupColumn("Glow", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
+                                        ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthStretch);
+                                        ImGui.TableHeadersRow();
+                                        DrawTitleCommon(t, ref b);
+
+
+                                        string c;
+                                        if (string.IsNullOrWhiteSpace(t.Title)) {
+                                            c = "/honorific force clear";
+                                        } else {
+                                            c = $"/honorific force set {t.Title}";
+                                            if (t.IsPrefix) c += " | prefix";
+                                            if (t.Color != null) {
+                                                c += " | #";
+                                                c += $"{(byte)(t.Color.Value.X * 255):X2}";
+                                                c += $"{(byte)(t.Color.Value.Y * 255):X2}";
+                                                c += $"{(byte)(t.Color.Value.Z * 255):X2}";
+                                                
+                                                if (t.Glow != null) {
+                                                    c += " | #";
+                                                    c += $"{(byte)(t.Glow.Value.X * 255):X2}";
+                                                    c += $"{(byte)(t.Glow.Value.Y * 255):X2}";
+                                                    c += $"{(byte)(t.Glow.Value.Z * 255):X2}";
+                                                }
+                                            }
+                                        }
+
+                                        if (ImGui.GetContentRegionAvail().X > ImGui.CalcTextSize(c).X + ImGui.GetStyle().FramePadding.X * 2) {
+                                            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+                                            ImGui.InputText("##commandOutput", ref c, 255, ImGuiInputTextFlags.ReadOnly | ImGuiInputTextFlags.AutoSelectAll);
+                                            ImGui.EndTable();
+                                        } else {
+                                            ImGui.EndTable();
+                                            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+                                            ImGui.InputText("##commandOutput", ref c, 255, ImGuiInputTextFlags.ReadOnly | ImGuiInputTextFlags.AutoSelectAll);
+                                        }
+                                    }
+
+                                    ImGui.TreePop();
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
         }
@@ -471,6 +580,17 @@ public class ConfigWindow : Window {
                     }
 
                     modified = true;
+                }
+
+                if (ImGui.IsItemHovered()) {
+                    ImGui.BeginTooltip();
+                    ImGui.Text("Toggle this title");
+                    ImGui.Spacing();
+                    ImGui.TextDisabled("Right click to copy toggle command.");
+                    ImGui.EndTooltip();
+                }
+                if (ImGui.IsItemClicked(ImGuiMouseButton.Right)) {
+                    ImGui.SetClipboardText($"/honorific title toggle {title.GetUniqueId(characterConfig)}");
                 }
                 
                 DrawTitleCommon(title, ref modified);
@@ -600,6 +720,19 @@ public class ConfigWindow : Window {
             modified |= ImGui.Checkbox("##enable", ref characterConfig.DefaultTitle.Enabled);
             
             checkboxSize = ImGui.GetItemRectSize().X;
+            
+            
+            if (ImGui.IsItemHovered()) {
+                ImGui.BeginTooltip();
+                ImGui.Text("Toggle this title");
+                ImGui.Spacing();
+                ImGui.TextDisabled("Right click to copy toggle command.");
+                ImGui.EndTooltip();
+            }
+            if (ImGui.IsItemClicked(ImGuiMouseButton.Right)) {
+                ImGui.SetClipboardText($"/honorific title toggle {characterConfig.DefaultTitle.UniqueId}");
+            }
+            
             DrawTitleCommon(characterConfig.DefaultTitle, ref modified);
             
             ImGui.TextDisabled("Default Title");

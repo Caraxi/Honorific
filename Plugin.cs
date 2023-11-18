@@ -143,10 +143,68 @@ public unsafe class Plugin : IDalamudPlugin {
         void HelpForceClear() {
             PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific force clear").Build(), Name);
         }
+        void HelpToggle() {
+            PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific title ").AddUiForeground("<enable|disable|toggle>", 52).AddText(" ").AddUiForeground("<title>", 35).Build(), Name);
+        }
         
         
         if (splitArgs.Length > 0) {
             switch (splitArgs[0]) {
+                case "title": {
+                    var character = PluginService.ClientState.LocalPlayer;
+                    if (character == null) {
+                        PluginService.Chat.PrintError($"Unable to use command. Character not found.", Name);
+                        return;
+                    }
+                    
+                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                        PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
+                        return;
+                    }
+                    
+                    if (splitArgs.Length != 3) {
+                        HelpToggle();
+                        return;
+                    }
+                    
+                    var titleText = splitArgs[2];
+
+                    var title = characterConfig.GetTitleByUniqueId(titleText);
+                    if (title == null) title = characterConfig.CustomTitles.FirstOrDefault(t => t.Title?.Equals(titleText, StringComparison.InvariantCultureIgnoreCase) == true);
+                    if (title == null && characterConfig.DefaultTitle.Title?.Equals(titleText, StringComparison.InvariantCultureIgnoreCase) == true) {
+                        title = characterConfig.DefaultTitle;
+                    }
+
+                    if (title == null) {
+                        PluginService.Chat.PrintError($"'{titleText}' is not setup on this character.", Name);
+                        return;
+                    }
+                    
+                    switch (splitArgs[1].ToLower().Trim('<', '>', '[', ']')) {
+                        case "toggle" or "t" when !title.Enabled:
+                        case "enable" or "e" or "on": {
+                            if (!title.Enabled) {
+                                title.Enabled = true;
+                                PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been enabled.").Build(), Name);
+                            }
+                            
+                            return;
+                        }
+                        case "toggle" or "t" when title.Enabled:
+                        case "disable" or "d" or "off": {
+                            if (title.Enabled) {
+                                title.Enabled = false;
+                                PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been disabled.").Build(), Name);
+                            }
+                            return;
+                        }
+                        default: {
+                            PluginService.Chat.PrintError($"'{splitArgs[1]}' is not a valid action.", Name);
+                            HelpToggle();
+                            return;
+                        }
+                    }
+                }
                 case "force" when splitArgs.Length > 1 && splitArgs[1].ToLower() is "clear": {
                     var character = PluginService.ClientState.LocalPlayer;
                     if (character == null) {
@@ -286,6 +344,7 @@ public unsafe class Plugin : IDalamudPlugin {
                 default: 
                     PluginService.Chat.PrintError($"Invalid Subcommand: '{args}'", Name);
                     ShowHelp:
+                    HelpToggle();
                     HelpForceSet();
                     HelpForceClear();
                     return;

@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System;
 using System.Numerics;
 using Dalamud.Game.Text.SeStringHandling;
 using Newtonsoft.Json;
@@ -32,6 +33,7 @@ public class CustomTitle {
     public string? Title = string.Empty;
     public bool IsPrefix;
     public bool IsOriginal;
+    public string UniqueId = string.Empty;
     
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
@@ -63,5 +65,24 @@ public class CustomTitle {
         return builder.Build().Cleanup();
     }
     
+    public string GetUniqueId(CharacterConfig characterConfig) {
+        if (string.IsNullOrEmpty(UniqueId) || UniqueId.Length < 6 || characterConfig.CustomTitles.Count(t => t.UniqueId == UniqueId) > 1) {
+            string id;
+            var c = 0;
+            var r = new Random();
+            do {
+                id = "uid:";
+                id += (char)r.Next('a', 'z');
+                id += (char)r.Next('0', '9');
+                while (id.Length < c % 10) {
+                    id += (char)r.Next('a', 'z');
+                    id += (char)r.Next('0', '9');
+                }
+                c++;
+            } while (characterConfig.CustomTitles.Any(t => t.UniqueId == id));
+            UniqueId = id;
+        }
+        return UniqueId;
+    }
     
 }
