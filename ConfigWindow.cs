@@ -36,13 +36,15 @@ public class ConfigWindow : Window {
         this.config = config;
         this.plugin = plugin;
         
-        SizeConstraints = new WindowSizeConstraints {
-            MinimumSize = ImGuiHelpers.ScaledVector2(800, 400),
-            MaximumSize = new Vector2(float.MaxValue)
-        };
+        Size = ImGuiHelpers.MainViewport.Size * 1 / ImGuiHelpers.GlobalScale;
+        SizeCondition = ImGuiCond.Appearing;
+    }
 
-        Size = ImGuiHelpers.ScaledVector2(1000, 500);
-        SizeCondition = ImGuiCond.FirstUseEver;
+    public override void PreDraw() {
+        SizeConstraints = new WindowSizeConstraints {
+            MinimumSize = new Vector2(800, 400),
+            MaximumSize = ImGuiHelpers.MainViewport.Size * 1 / ImGuiHelpers.GlobalScale * 0.95f
+        };
     }
     
     private Vector2 iconButtonSize = new(16);
