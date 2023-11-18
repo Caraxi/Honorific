@@ -574,19 +574,24 @@ public class ConfigWindow : Window {
                 ImGui.SameLine();
                 ImGui.PopFont();
                 ImGui.PopStyleVar();
-                if (ImGui.Checkbox("##enable", ref title.Enabled)) {
-                    if (title.Enabled) {
-                        foreach (var t in characterConfig.CustomTitles.Where (t => t.TitleCondition == title.TitleCondition && t.ConditionParam0 == title.ConditionParam0)) {
-                            t.Enabled = false;
-                        }
-                        title.Enabled = true;
-                    }
 
-                    modified = true;
+
+                var isDuplicateEnabled = characterConfig.UseRandom == false && i > 0 && characterConfig.CustomTitles.Take(i).Any(t => t.Enabled && t.TitleCondition == title.TitleCondition && t.ConditionParam0 == title.ConditionParam0);
+                var isActive = characterConfig.UseRandom && !isDuplicateEnabled && characterConfig.ActiveTitle == title;
+                
+                using (ImRaii.PushColor(ImGuiCol.CheckMark, ImGui.GetColorU32(ImGuiCol.CheckMark) & 0x40FFFFFF, isDuplicateEnabled)) {
+                    using (ImRaii.PushColor(ImGuiCol.CheckMark, ImGuiColors.ParsedGreen, isActive)) {
+                        if (ImGui.Checkbox("##enable", ref title.Enabled)) {
+                            modified = true;
+                        }
+                    }
                 }
 
                 if (ImGui.IsItemHovered()) {
                     ImGui.BeginTooltip();
+                    if (isDuplicateEnabled) ImGui.TextColored(ImGuiColors.DalamudRed, "This title will not be used as another title with the same condition precedes it.");
+                    if (isActive) ImGui.TextColored(ImGuiColors.ParsedGreen, "This is the current active title.");
+                    
                     ImGui.Text("Toggle this title");
                     ImGui.Spacing();
                     ImGui.TextDisabled("Right click to copy toggle command.");
@@ -743,6 +748,46 @@ public class ConfigWindow : Window {
             ImGui.PopID();
             
             ImGui.EndTable();
+        }
+
+        
+        
+        // For some reason separators are broken here... I'll just draw my own
+        ImGui.GetWindowDrawList().AddLine(ImGui.GetCursorScreenPos(), ImGui.GetCursorScreenPos() + ImGui.GetContentRegionAvail() * Vector2.UnitX, ImGui.GetColorU32(ImGuiCol.Separator));
+        ImGui.Spacing();
+        
+        ImGui.Checkbox("Use Random Titles", ref characterConfig.UseRandom);
+        ImGui.SameLine();
+
+        
+        using (ImRaii.PushFont(UiBuilder.IconFont)) {
+            ImGui.Text($"{(char)FontAwesomeIcon.InfoCircle}");
+        }
+
+        if (ImGui.IsItemHovered()) {
+            ImGui.BeginTooltip();
+            ImGui.Text("Using random titles allows your title to be picked from all titles that currently meet their conditions.");
+            
+            ImGui.Text("The selected random title will be locked in until its condition is no longer met, allowing another title to be picked.");
+            using (ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, Vector2.Zero)) {
+                ImGui.Text("Using the '");
+                ImGui.SameLine();
+                ImGui.TextColored(ImGuiColors.DalamudViolet, "Next Random");
+                ImGui.SameLine();
+                ImGui.Text("' button or command '");
+                ImGui.SameLine();
+                ImGui.TextColored(ImGuiColors.DalamudViolet, "/honorific random");
+                ImGui.SameLine();
+                ImGui.Text("' will force it to pick a new random title.");
+            }
+           
+            ImGui.TextDisabled("Note: The default title will never be included in the random title selection.");
+            ImGui.EndTooltip();
+        }
+
+        if (characterConfig.UseRandom && characterConfig.ActiveTitle != null) {
+            ImGui.SameLine();
+            if (ImGui.Button("Next Random")) characterConfig.ActiveTitle = null;
         }
     }
 

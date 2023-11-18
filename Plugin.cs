@@ -24,7 +24,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using ImGuiNET;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
@@ -204,6 +203,26 @@ public unsafe class Plugin : IDalamudPlugin {
                             return;
                         }
                     }
+                }
+                case "random": {
+                    var character = PluginService.ClientState.LocalPlayer;
+                    if (character == null) {
+                        PluginService.Chat.PrintError($"Unable to use command. Character not found.", Name);
+                        return;
+                    }
+                    
+                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                        PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
+                        return;
+                    }
+
+                    if (!characterConfig.UseRandom) {
+                        PluginService.Chat.PrintError("This character is not configured to use random titles.", Name);
+                        return;
+                    }
+
+                    characterConfig.ActiveTitle = null;
+                    return;
                 }
                 case "force" when splitArgs.Length > 1 && splitArgs[1].ToLower() is "clear": {
                     var character = PluginService.ClientState.LocalPlayer;
@@ -468,6 +487,7 @@ public unsafe class Plugin : IDalamudPlugin {
     }
     
     public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title, bool allowOriginal = true) {
+        using var _ = PerformanceMonitors.Run("TryGetTitle");
         title = null;
         if (isDisposing || runTime.ElapsedMilliseconds < 1000) {
             if (!allowOriginal) return false;
@@ -485,33 +505,27 @@ public unsafe class Plugin : IDalamudPlugin {
             title = characterConfig.Override;
             return true;
         }
-        
-        foreach (var cTitle in characterConfig.CustomTitles.Where(t => t.Enabled && t.IsValid())) {
-            switch (cTitle.TitleCondition) {
-                case TitleConditionType.None:
-                    title = cTitle;
+
+
+        if (characterConfig.UseRandom) {
+            var titles = characterConfig.CustomTitles.Where(t => t.Enabled && t.IsValid() && t.MatchesConditions(playerCharacter)).ToList();
+
+            if (titles.Count > 0) {
+                if (characterConfig.ActiveTitle != null && titles.Contains(characterConfig.ActiveTitle)) {
+                    title = characterConfig.ActiveTitle;
                     return true;
-                case TitleConditionType.ClassJob:
-                    if (cTitle.ConditionParam0 == playerCharacter.ClassJob.Id) {
-                        title = cTitle;
-                        return true;
-                    }
-                    break;
-                case TitleConditionType.JobRole:
-                    if (cTitle.ConditionParam0 == 0) continue;
-                    if (playerCharacter.ClassJob.GameData?.IsRole((ClassJobRole)cTitle.ConditionParam0) ?? false) {
-                        title = cTitle;
-                        return true;
-                    }
-                    break;
-                case TitleConditionType.GearSet:
-                    if (playerCharacter != PluginService.ClientState.LocalPlayer) continue;
-                    var gearSetModule = RaptureGearsetModule.Instance();
-                    if (gearSetModule == null) continue;
-                    if (RaptureGearsetModule.Instance()->CurrentGearsetIndex != cTitle.ConditionParam0) continue;
-                    title = cTitle;
-                    return true;
+                }
+
+                var r = new Random().Next(0, titles.Count);
+                characterConfig.ActiveTitle = titles[r];
+                title = characterConfig.ActiveTitle;
+                return true;
             }
+            characterConfig.ActiveTitle = null;
+        } else {
+            characterConfig.ActiveTitle = null;
+            title = characterConfig.CustomTitles.FirstOrDefault(t => t.Enabled && t.IsValid() && t.MatchesConditions(playerCharacter));
+            if (title != null) return true;
         }
         
         if (characterConfig.DefaultTitle.Enabled) {

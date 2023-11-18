@@ -1,7 +1,9 @@
 ﻿using System.Linq;
 using System;
 using System.Numerics;
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
 
 namespace Honorific;
@@ -85,4 +87,22 @@ public class CustomTitle {
         return UniqueId;
     }
     
+    public unsafe bool MatchesConditions(PlayerCharacter playerCharacter) {
+        switch (TitleCondition) {
+            case TitleConditionType.None:
+                return true;
+            case TitleConditionType.ClassJob:
+                return ConditionParam0 == playerCharacter.ClassJob.Id;
+            case TitleConditionType.JobRole:
+                if (ConditionParam0 == 0) return false;
+                return playerCharacter.ClassJob.GameData?.IsRole((ClassJobRole)ConditionParam0) ?? false;
+            case TitleConditionType.GearSet:
+                if (playerCharacter != PluginService.ClientState.LocalPlayer) return false;
+                var gearSetModule = RaptureGearsetModule.Instance();
+                if (gearSetModule == null) return false;
+                return RaptureGearsetModule.Instance()->CurrentGearsetIndex == ConditionParam0;
+            default:
+                return false;
+        }
+    }
 }
