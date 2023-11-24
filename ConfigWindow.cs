@@ -318,6 +318,33 @@ public class ConfigWindow : Window {
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
                 ImGui.Checkbox("Display titles in 'Examine' window.", ref config.ApplyToInspect);
+                
+                if (ImGuiExt.TriStateCheckbox("##HideVanillaAll", out var setAll, config.HideVanillaSelf, config.HideVanillaParty, config.HideVanillaAlliance, config.HideVanillaFriends, config.HideVanillaOther)) {
+                    if (setAll != null) {
+                        config.HideVanillaSelf = setAll.Value;
+                        config.HideVanillaParty = setAll.Value;
+                        config.HideVanillaAlliance = setAll.Value;
+                        config.HideVanillaFriends = setAll.Value;
+                        config.HideVanillaOther = setAll.Value;
+                    }
+                }
+                
+                ImGui.SameLine();
+                if (ImGui.TreeNode("Hide Vanilla Titles")) {
+                    ImGui.Checkbox("Self##HideVanillaSelf", ref config.HideVanillaSelf);
+                    ImGui.Checkbox("Party Members##HideVanillaParty", ref config.HideVanillaParty);
+                    ImGui.Checkbox("Alliance Members##HideVanillaAlliance", ref config.HideVanillaAlliance);
+                    ImGui.Checkbox("Friends##HideVanillaFriends", ref config.HideVanillaFriends);
+                    ImGui.Checkbox("Other Players##HideVanillaOther", ref config.HideVanillaOther);
+                    
+                    ImGui.TreePop();
+                }
+                
+                ImGui.SameLine();
+                ImGuiComponents.HelpMarker("Hides titles that were not set by honorific.");
+                
+                
+                
                 ImGui.Checkbox("Hide Ko-fi Support button", ref config.HideKofi);
                 
                 #if DEBUG

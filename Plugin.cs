@@ -9,6 +9,7 @@ using System.Threading;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
@@ -22,7 +23,6 @@ using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
@@ -486,6 +486,20 @@ public unsafe class Plugin : IDalamudPlugin {
 
     public CustomTitle GetOriginalTitle(PlayerCharacter playerCharacter) {
         var title = new CustomTitle();
+        
+        bool hideVanilla;
+        if (playerCharacter == PluginService.ClientState.LocalPlayer) hideVanilla = Config.HideVanillaSelf;
+        else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.PartyMember)) hideVanilla = Config.HideVanillaParty;
+        else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.AllianceMember)) hideVanilla = Config.HideVanillaAlliance;
+        else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.Friend)) hideVanilla = Config.HideVanillaFriends;
+        else hideVanilla = Config.HideVanillaOther;
+
+        if (hideVanilla) {
+            title.Title = string.Empty;
+            title.IsOriginal = true;
+            return title;
+        }
+        
         var character = (Character*) playerCharacter.Address;
         var titleId = character->CharacterData.TitleID;
         var titleData = titleSheet!.GetRow(titleId);

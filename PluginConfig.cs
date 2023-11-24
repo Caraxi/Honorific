@@ -13,6 +13,12 @@ public class PluginConfig : IPluginConfiguration {
     public bool HideKofi = false;
     public bool ApplyToInspect = true;
 
+    public bool HideVanillaSelf;
+    public bool HideVanillaParty;
+    public bool HideVanillaAlliance;
+    public bool HideVanillaFriends;
+    public bool HideVanillaOther;
+    
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {
         characterConfig = null;
         if (!WorldCharacterDictionary.TryGetValue(world, out var w)) return false;
