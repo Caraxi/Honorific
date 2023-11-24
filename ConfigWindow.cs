@@ -35,9 +35,6 @@ public class ConfigWindow : Window {
     public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse) {
         this.config = config;
         this.plugin = plugin;
-        
-        Size = ImGuiHelpers.MainViewport.Size * 1 / ImGuiHelpers.GlobalScale;
-        SizeCondition = ImGuiCond.Appearing;
     }
 
     public override void PreDraw() {
