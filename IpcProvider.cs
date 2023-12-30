@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Logging;
 using Dalamud.Plugin.Ipc;
 using Newtonsoft.Json;
 
@@ -21,6 +23,7 @@ public static class IpcProvider {
     private static ICallGateProvider<string>? GetLocalCharacterTitle;
     private static ICallGateProvider<Character, object>? ClearCharacterTitle;
     private static ICallGateProvider<string, object>? LocalCharacterTitleChanged;
+    private static ICallGateProvider<string, uint, TitleData[]>? GetCharacterTitleList;
     private static ICallGateProvider<object>? Ready;
     private static ICallGateProvider<object>? Disposing;
 
@@ -56,7 +59,13 @@ public static class IpcProvider {
             if (!plugin.TryGetTitle(player, out var title) || title == null) return string.Empty;
             return JsonConvert.SerializeObject((TitleData)title);
         });
-        
+
+        GetCharacterTitleList = PluginService.PluginInterface.GetIpcProvider<string, uint, TitleData[]>($"{NameSpace}.{nameof(GetCharacterTitleList)}");
+        GetCharacterTitleList.RegisterFunc((name, world) => {
+            if (!plugin.Config.TryGetCharacterConfig(name, world, out var characterConfig)) return Array.Empty<TitleData>();
+            return new TitleData[] { characterConfig.DefaultTitle }.Union(characterConfig.CustomTitles.Select(x => (TitleData)x)).ToArray();
+        });
+
         ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
         ClearCharacterTitle.RegisterAction(character => {
             if (character is not PlayerCharacter playerCharacter) return;
@@ -89,6 +98,7 @@ public static class IpcProvider {
         ClearCharacterTitle?.UnregisterAction();
         GetCharacterTitle?.UnregisterFunc();
         GetLocalCharacterTitle?.UnregisterFunc();
+        GetCharacterTitleList?.UnregisterFunc();
         LocalCharacterTitleChanged = null;
         Ready = null;
         Disposing = null;
