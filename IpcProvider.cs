@@ -12,7 +12,7 @@ namespace Honorific;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class IpcProvider {
     public const uint MajorVersion = 2;
-    public const uint MinorVersion = 0;
+    public const uint MinorVersion = 1;
 
     public const string NameSpace = "Honorific";
     
