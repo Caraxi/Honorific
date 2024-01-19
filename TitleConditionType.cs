@@ -13,4 +13,7 @@ public enum TitleConditionType {
     
     [Description("Gear Set")]
     GearSet,
+    
+    [Description("Original Title")]
+    Title,
 }

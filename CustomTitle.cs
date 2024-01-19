@@ -3,6 +3,7 @@ using System;
 using System.Numerics;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
 
@@ -101,6 +102,9 @@ public class CustomTitle {
                 var gearSetModule = RaptureGearsetModule.Instance();
                 if (gearSetModule == null) return false;
                 return RaptureGearsetModule.Instance()->CurrentGearsetIndex == ConditionParam0;
+            case TitleConditionType.Title:
+                var c = (Character*)playerCharacter.Address;
+                return c->CharacterData.TitleID == ConditionParam0;
             default:
                 return false;
         }

@@ -9,7 +9,6 @@ using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Config;
-using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
@@ -19,11 +18,11 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using Newtonsoft.Json;
+using Title = Lumina.Excel.GeneratedSheets2.Title;
 using World = Lumina.Excel.GeneratedSheets.World;
 
 namespace Honorific; 
@@ -46,6 +45,8 @@ public class ConfigWindow : Window {
     
     private Vector2 iconButtonSize = new(16);
     private float checkboxSize = 36;
+
+    private string gameTitleSearch = string.Empty;
 
     public void DrawCharacterList() {
 
@@ -713,6 +714,54 @@ public class ConfigWindow : Window {
                                 
                                 ImGui.EndCombo();
                             }
+                        }
+                        break;
+                    }
+                    case TitleConditionType.Title: {
+                        var titleSheet = PluginService.Data.GetExcelSheet<Title>();
+                        if (titleSheet == null) break;
+                        ImGui.SetNextItemWidth(-1);
+
+
+                        string GetDisplayTitle(Title? t) {
+                            if (t == null || t.RowId == 0) return "No Title";
+                            var masc = t.Masculine?.RawString ?? "No Title";
+                            var fem = t.Feminine?.RawString ?? "No Title";
+                            
+                            var display = string.Equals(masc, fem, StringComparison.InvariantCultureIgnoreCase) ? masc : $"{masc} / {fem}";
+                            return display;
+                        }
+                        
+                        
+                        var currentSetTitle = titleSheet.GetRow((uint)title.ConditionParam0);
+                        var titleDisplay = GetDisplayTitle(currentSetTitle);
+                        ImGui.SameLine();
+                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        if (ImGui.BeginCombo("##conditionGearset", $"{titleDisplay}", ImGuiComboFlags.HeightLargest)) {
+
+                            if (ImGui.IsWindowAppearing()) {
+                                gameTitleSearch = string.Empty;
+                                ImGui.SetKeyboardFocusHere();
+                            }
+                            
+                            ImGui.SetNextItemWidth(-1);
+                            ImGui.InputTextWithHint("##gameTitleSearch", "Search...", ref gameTitleSearch, 50);
+
+                            if (ImGui.BeginChild("gameTitleScroll", new Vector2(ImGui.GetItemRectSize().X, 250 * ImGuiHelpers.GlobalScale))) {
+                                foreach (var (row, display) in titleSheet.Select(t => ((int)t.RowId, GetDisplayTitle(t))).Where(t => string.IsNullOrWhiteSpace(gameTitleSearch) || t.Item2.Contains(gameTitleSearch, StringComparison.InvariantCultureIgnoreCase)).OrderBy(t => t.Item1 == 0 ? 0 : 1).ThenBy(t => t.Item2, StringComparer.OrdinalIgnoreCase)) {
+                                    if (string.IsNullOrWhiteSpace(display)) continue;
+                                    using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled), row == 0)) {
+                                        if (ImGui.Selectable( $"{display}##title_{row}", row == title.ConditionParam0)) {
+                                            title.ConditionParam0 = row;
+                                            ImGui.CloseCurrentPopup();
+                                        }
+                                    }
+                                    
+                                    if (ImGui.IsWindowAppearing() && row == title.ConditionParam0) ImGui.SetScrollHereY(0.5f);
+                                } 
+                            }
+                            ImGui.EndChild();
+                            ImGui.EndCombo();
                         }
                         break;
                     }
