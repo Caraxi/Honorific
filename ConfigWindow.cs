@@ -311,7 +311,7 @@ public class ConfigWindow : Window {
                     }
                 }
 
-                DrawCharacterView(selectedCharacter, ref modified);
+                DrawCharacterView(selectedCharacter, activePlayer, ref modified);
             } else {
                 
                 ImGui.Text("Honorific Options");
@@ -520,7 +520,7 @@ public class ConfigWindow : Window {
         ImGui.EndChild();
     }
 
-    private void DrawCharacterView(CharacterConfig? characterConfig, ref bool modified) {
+    private void DrawCharacterView(CharacterConfig? characterConfig, GameObject? activeCharacter, ref bool modified) {
         if (characterConfig == null) return;
         
         if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
@@ -720,9 +720,7 @@ public class ConfigWindow : Window {
                     case TitleConditionType.Title: {
                         var titleSheet = PluginService.Data.GetExcelSheet<Title>();
                         if (titleSheet == null) break;
-                        ImGui.SetNextItemWidth(-1);
-
-
+                        
                         string GetDisplayTitle(Title? t) {
                             if (t == null || t.RowId == 0) return "No Title";
                             var masc = t.Masculine?.RawString ?? "No Title";
@@ -736,7 +734,9 @@ public class ConfigWindow : Window {
                         var currentSetTitle = titleSheet.GetRow((uint)title.ConditionParam0);
                         var titleDisplay = GetDisplayTitle(currentSetTitle);
                         ImGui.SameLine();
-                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        if (ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        
+                        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 45 * ImGuiHelpers.GlobalScale);
                         if (ImGui.BeginCombo("##conditionGearset", $"{titleDisplay}", ImGuiComboFlags.HeightLargest)) {
 
                             if (ImGui.IsWindowAppearing()) {
@@ -746,7 +746,7 @@ public class ConfigWindow : Window {
                             
                             ImGui.SetNextItemWidth(-1);
                             ImGui.InputTextWithHint("##gameTitleSearch", "Search...", ref gameTitleSearch, 50);
-
+                            
                             if (ImGui.BeginChild("gameTitleScroll", new Vector2(ImGui.GetItemRectSize().X, 250 * ImGuiHelpers.GlobalScale))) {
                                 foreach (var (row, display) in titleSheet.Select(t => ((int)t.RowId, GetDisplayTitle(t))).Where(t => string.IsNullOrWhiteSpace(gameTitleSearch) || t.Item2.Contains(gameTitleSearch, StringComparison.InvariantCultureIgnoreCase)).OrderBy(t => t.Item1 == 0 ? 0 : 1).ThenBy(t => t.Item2, StringComparer.OrdinalIgnoreCase)) {
                                     if (string.IsNullOrWhiteSpace(display)) continue;
@@ -763,6 +763,39 @@ public class ConfigWindow : Window {
                             ImGui.EndChild();
                             ImGui.EndCombo();
                         }
+                        
+                        ImGui.SameLine();
+                        using (ImRaii.Disabled(activeCharacter == null)) {
+                            using (ImRaii.PushFont(UiBuilder.IconFont)) {
+                                if (ImGui.Button($"{(char)FontAwesomeIcon.PersonBurst}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y)) && activeCharacter is PlayerCharacter activePlayerCharacter) {
+                                    unsafe {
+                                        var c = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)activePlayerCharacter.Address;
+                                        title.ConditionParam0 = c->CharacterData.TitleID;
+                                    }
+                                }
+                            }
+
+                            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) {
+                                ImGui.BeginTooltip();
+                                ImGui.Text("Set to current title");
+
+                                if (activeCharacter is PlayerCharacter activePlayerCharacter) {
+                                    unsafe {
+                                        var c = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)activePlayerCharacter.Address;
+
+                                        var activeTitle = titleSheet.GetRow(c->CharacterData.TitleID);
+                                        
+                                        ImGui.Text($"\t{GetDisplayTitle(activeTitle)}\t");
+                                    }
+                                    
+                                } else {
+                                    ImGui.TextDisabled("Player not visible");
+                                }
+                                
+                                ImGui.EndTooltip();
+                            }
+                        }
+                            
                         break;
                     }
                 }
