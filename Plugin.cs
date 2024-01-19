@@ -32,7 +32,8 @@ using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 namespace Honorific;
 
 public unsafe class Plugin : IDalamudPlugin {
-    public string Name => "Honorific";
+    public const byte MaxTitleLength = 32;
+    public const string Name = "Honorific";
     
     public PluginConfig Config { get; }
     
@@ -286,8 +287,8 @@ public unsafe class Plugin : IDalamudPlugin {
                         if (titleText == null) {
                             titleText = a;
 
-                            if (titleText.Length > 25) {
-                                PluginService.Chat.PrintError($"Title is too long: '{a}'. (Max 25)", Name);
+                            if (titleText.Length > MaxTitleLength) {
+                                PluginService.Chat.PrintError($"Title is too long: '{a}'. (Max {MaxTitleLength})", Name);
                                 return;
                             }
                             

@@ -48,7 +48,7 @@ public class CustomTitle {
 
     public bool IsValid() {
         if (Title == null) return false;
-        if (Title.Length > 25) return false;
+        if (Title.Length > Plugin.MaxTitleLength) return false;
         if (Title.Any(char.IsControl)) return false;
         return true;
     }

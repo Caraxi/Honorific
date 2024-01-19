@@ -901,7 +901,7 @@ public class ConfigWindow : Window {
     private void DrawTitleCommon(CustomTitle title, ref bool modified) {
         ImGui.TableNextColumn();
         ImGui.SetNextItemWidth(-1);
-        modified |= ImGui.InputText($"##title", ref title.Title, 25);
+        modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
         modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
