@@ -62,7 +62,7 @@ public static class IpcProvider {
 
         GetCharacterTitleList = PluginService.PluginInterface.GetIpcProvider<string, uint, TitleData[]>($"{NameSpace}.{nameof(GetCharacterTitleList)}");
         GetCharacterTitleList.RegisterFunc((name, world) => {
-            if (!plugin.Config.TryGetCharacterConfig(name, world, out var characterConfig)) return Array.Empty<TitleData>();
+            if (!plugin.Config.TryGetCharacterConfig(name, world, out var characterConfig) || characterConfig == null) return Array.Empty<TitleData>();
             return new TitleData[] { characterConfig.DefaultTitle }.Union(characterConfig.CustomTitles.Select(x => (TitleData)x)).ToArray();
         });
 
