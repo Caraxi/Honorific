@@ -8,11 +8,6 @@ using FFXIVClientStructs.FFXIV.Client.System.String;
 namespace Honorific; 
 
 public static unsafe class Extension {
-    public static SeString ToSeString(this Utf8String str) {
-        if (str.BufUsed > int.MaxValue) throw new Exception("String too long");
-        return MemoryHelper.ReadSeString(new nint(str.StringPtr), (int)str.BufUsed);
-    }
-    
     public static SeString Cleanup(this SeString str) {
         var payloads = new List<Payload>();
         foreach (var payload in str.Payloads) {

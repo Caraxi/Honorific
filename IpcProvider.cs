@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
-using Dalamud.Logging;
 using Dalamud.Plugin.Ipc;
 using Newtonsoft.Json;
 
@@ -18,10 +17,10 @@ public static class IpcProvider {
     
     private static ICallGateProvider<(uint, uint)>? ApiVersion;
 
-    private static ICallGateProvider<Character, string, object>? SetCharacterTitle;
-    private static ICallGateProvider<Character, string>? GetCharacterTitle;
+    private static ICallGateProvider<ICharacter, string, object>? SetCharacterTitle;
+    private static ICallGateProvider<ICharacter, string>? GetCharacterTitle;
     private static ICallGateProvider<string>? GetLocalCharacterTitle;
-    private static ICallGateProvider<Character, object>? ClearCharacterTitle;
+    private static ICallGateProvider<ICharacter, object>? ClearCharacterTitle;
     private static ICallGateProvider<string, object>? LocalCharacterTitleChanged;
     private static ICallGateProvider<string, uint, TitleData[]>? GetCharacterTitleList;
     private static ICallGateProvider<object>? Ready;
@@ -31,23 +30,23 @@ public static class IpcProvider {
         ApiVersion = PluginService.PluginInterface.GetIpcProvider<(uint, uint)>($"{NameSpace}.{nameof(ApiVersion)}");
         ApiVersion.RegisterFunc(() => (MajorVersion, MinorVersion));
         
-        SetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, string, object>($"{NameSpace}.{nameof(SetCharacterTitle)}");
+        SetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, string, object>($"{NameSpace}.{nameof(SetCharacterTitle)}");
         SetCharacterTitle.RegisterAction((character, titleDataJson) => {
             try {
-                if (character is not PlayerCharacter playerCharacter) return;
-                Plugin.IpcAssignedTitles.Remove(playerCharacter.ObjectId);
+                if (character is not IPlayerCharacter playerCharacter) return;
+                Plugin.IpcAssignedTitles.Remove(playerCharacter.EntityId);
                 if (titleDataJson == string.Empty) return;
                 var titleData = JsonConvert.DeserializeObject<TitleData>(titleDataJson);
                 if (titleData == null) return;
-                Plugin.IpcAssignedTitles.Add(playerCharacter.ObjectId, titleData);
+                Plugin.IpcAssignedTitles.Add(playerCharacter.EntityId, titleData);
             } catch (Exception ex) {
                 PluginService.Log.Error(ex, $"Error handling {nameof(SetCharacterTitle)} IPC.");
             }
         });
         
-        GetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, string>($"{NameSpace}.{nameof(GetCharacterTitle)}");
+        GetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, string>($"{NameSpace}.{nameof(GetCharacterTitle)}");
         GetCharacterTitle.RegisterFunc(character => {
-            if (character is not PlayerCharacter playerCharacter) return string.Empty;
+            if (character is not IPlayerCharacter playerCharacter) return string.Empty;
             if (!plugin.TryGetTitle(playerCharacter, out var title) || title == null) return string.Empty;
             return JsonConvert.SerializeObject((TitleData)title);
         });
@@ -66,10 +65,10 @@ public static class IpcProvider {
             return new TitleData[] { characterConfig.DefaultTitle }.Union(characterConfig.CustomTitles.Select(x => (TitleData)x)).ToArray();
         });
 
-        ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<Character, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
+        ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
         ClearCharacterTitle.RegisterAction(character => {
-            if (character is not PlayerCharacter playerCharacter) return;
-            Plugin.IpcAssignedTitles.Remove(playerCharacter.ObjectId);
+            if (character is not IPlayerCharacter playerCharacter) return;
+            Plugin.IpcAssignedTitles.Remove(playerCharacter.EntityId);
         });
 
         LocalCharacterTitleChanged = PluginService.PluginInterface.GetIpcProvider<string, object>($"{NameSpace}.{nameof(LocalCharacterTitleChanged)}");

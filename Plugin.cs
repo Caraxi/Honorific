@@ -27,6 +27,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
+using ObjectKind = FFXIVClientStructs.FFXIV.Client.Game.Object.ObjectKind;
 using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 
 namespace Honorific;
@@ -37,7 +38,7 @@ public unsafe class Plugin : IDalamudPlugin {
     
     public PluginConfig Config { get; }
     
-    [Signature("40 55 56 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
+    [Signature("40 56 57 41 56 41 57 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
     private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
     
     [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 74 24 ??", DetourName = nameof(UpdateNameplateNpcDetour))]
@@ -57,7 +58,7 @@ public unsafe class Plugin : IDalamudPlugin {
     public Dictionary<ulong, uint> ModifiedNamePlates = new();
     private readonly CancellationTokenSource pluginLifespan;
 
-    public Plugin(DalamudPluginInterface pluginInterface) {
+    public Plugin(IDalamudPluginInterface pluginInterface) {
         pluginLifespan = new CancellationTokenSource();
         pluginInterface.Create<PluginService>();
 
@@ -115,7 +116,7 @@ public unsafe class Plugin : IDalamudPlugin {
         SeString? GetString(int index) {
             var atkValues = new ReadOnlySpan<AtkValue>(atkUnitBase->AtkValues, atkUnitBase->AtkValuesCount);
             if (atkValues.Length <= index) return null;
-            if (atkValues[index].Type is not (ValueType.String or ValueType.String8 or ValueType.AllocatedString)) return null;
+            if (atkValues[index].Type is not (ValueType.String or ValueType.String8 or ValueType.ManagedString)) return null;
             return MemoryHelper.ReadSeStringNullTerminated(new nint(atkValues[index].String));
         }
 
@@ -129,8 +130,8 @@ public unsafe class Plugin : IDalamudPlugin {
         var world = PluginService.Data.GetExcelSheet<World>()?.FirstOrDefault(w => w.IsPublic && w.Name.RawString == server.TextValue);
         if (world == null) return;
 
-        var obj = PluginService.Objects.FirstOrDefault(c => c is PlayerCharacter pc && c.Name.TextValue == name.TextValue && pc.HomeWorld.Id == world.RowId);
-        if (obj is not PlayerCharacter playerCharacter) return;
+        var obj = PluginService.Objects.FirstOrDefault(c => c is IPlayerCharacter pc && c.Name.TextValue == name.TextValue && pc.HomeWorld.Id == world.RowId);
+        if (obj is not IPlayerCharacter playerCharacter) return;
 
         if (!TryGetTitle(playerCharacter, out var title) || title == null) return;
         var nameNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 7U : 6U);
@@ -402,7 +403,7 @@ public unsafe class Plugin : IDalamudPlugin {
                 PluginService.Condition[ConditionFlag.WatchingCutscene78]) return r;
             
             var gameObject = &battleChara->Character.GameObject;
-            if (gameObject->ObjectKind == 1 && gameObject->SubKind == 4) {
+            if (gameObject->ObjectKind == ObjectKind.Pc && gameObject->SubKind == 4) {
                 AfterNameplateUpdate(namePlateInfo, battleChara);
             }
         } catch (Exception ex) {
@@ -414,10 +415,10 @@ public unsafe class Plugin : IDalamudPlugin {
 
     private void CleanupNamePlate(RaptureAtkModule.NamePlateInfo* namePlateInfo, bool force = false) {
         
-        if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectID.ObjectID)) {
+        if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectId.ObjectId)) {
             using var _ = PerformanceMonitors.Run("Cleanup");
-            PluginService.Log.Verbose($"Cleanup NamePlate: {namePlateInfo->Name.ToSeString().TextValue}");
-            var title = namePlateInfo->Title.ToSeString();
+            PluginService.Log.Verbose($"Cleanup NamePlate: {MemoryHelper.ReadSeString(&namePlateInfo->Name).TextValue}");
+            var title = MemoryHelper.ReadSeString(&namePlateInfo->Title);
             if (title.TextValue.Length > 0) {
                 title.Payloads.Insert(0, new TextPayload("《"));
                 title.Payloads.Add( new TextPayload("》"));
@@ -438,11 +439,11 @@ public unsafe class Plugin : IDalamudPlugin {
     }
 
     public void AfterNameplateUpdate(RaptureAtkModule.NamePlateInfo* namePlateInfo, BattleChara* battleChara) {
-        if (namePlateInfo->ObjectID.ObjectID == 0) return;
+        if (namePlateInfo->ObjectId.ObjectId == 0) return;
         using var fp = PerformanceMonitors.Run("AfterNameplateUpdate");
         var gameObject = &battleChara->Character.GameObject;
-        if (gameObject->ObjectKind != 1 || gameObject->SubKind != 4) return;
-        var player = PluginService.Objects.CreateObjectReference((nint)gameObject) as PlayerCharacter;
+        if (gameObject->ObjectKind != ObjectKind.Pc || gameObject->SubKind != 4) return;
+        var player = PluginService.Objects.CreateObjectReference((nint)gameObject) as IPlayerCharacter;
         if (player == null) return;
         
         var titleChanged = false;
@@ -451,7 +452,7 @@ public unsafe class Plugin : IDalamudPlugin {
             title = GetOriginalTitle(player);
         }
         
-        var currentDisplayTitle = namePlateInfo->DisplayTitle.ToSeString();
+        var currentDisplayTitle = MemoryHelper.ReadSeString(&namePlateInfo->DisplayTitle);
         var displayTitle = title.ToSeString(true, Config.ShowColoredTitles);
 
         if (!displayTitle.IsSameAs(currentDisplayTitle, out var encoded)) {
@@ -471,9 +472,9 @@ public unsafe class Plugin : IDalamudPlugin {
         if (titleChanged) {
             namePlateInfo->IsDirty = true;
             if (ModifiedNamePlates.ContainsKey((ulong)namePlateInfo)) {
-                ModifiedNamePlates[(ulong)namePlateInfo] = namePlateInfo->ObjectID.ObjectID;
+                ModifiedNamePlates[(ulong)namePlateInfo] = namePlateInfo->ObjectId.ObjectId;
             } else {
-                ModifiedNamePlates.Add((ulong)namePlateInfo, namePlateInfo->ObjectID.ObjectID); 
+                ModifiedNamePlates.Add((ulong)namePlateInfo, namePlateInfo->ObjectId.ObjectId); 
             }
 
             if (battleChara->Character.GameObject.ObjectIndex == 0) {
@@ -485,7 +486,7 @@ public unsafe class Plugin : IDalamudPlugin {
     public static Dictionary<uint, CustomTitle> IpcAssignedTitles { get; } = new();
     
 
-    public CustomTitle GetOriginalTitle(PlayerCharacter playerCharacter) {
+    public CustomTitle GetOriginalTitle(IPlayerCharacter playerCharacter) {
         var title = new CustomTitle();
         
         bool hideVanilla;
@@ -502,17 +503,17 @@ public unsafe class Plugin : IDalamudPlugin {
         }
         
         var character = (Character*) playerCharacter.Address;
-        var titleId = character->CharacterData.TitleID;
+        var titleId = character->CharacterData.TitleId;
         var titleData = titleSheet!.GetRow(titleId);
         if (titleData == null) return title;
-        var genderedTitle = character->GameObject.Gender == 0 ? titleData.Masculine : titleData.Feminine;
+        var genderedTitle = character->GameObject.Sex == 0 ? titleData.Masculine : titleData.Feminine;
         title.Title = genderedTitle.ToDalamudString().TextValue;
         title.IsPrefix = titleData.IsPrefix;
         title.IsOriginal = true;
         return title;
     }
     
-    public bool TryGetTitle(PlayerCharacter playerCharacter, out CustomTitle? title, bool allowOriginal = true) {
+    public bool TryGetTitle(IPlayerCharacter playerCharacter, out CustomTitle? title, bool allowOriginal = true) {
         using var _ = PerformanceMonitors.Run("TryGetTitle");
         title = null;
         if (isDisposing || runTime.ElapsedMilliseconds < 1000) {
@@ -520,7 +521,7 @@ public unsafe class Plugin : IDalamudPlugin {
             title = GetOriginalTitle(playerCharacter);
             return true;
         }
-        if (IpcAssignedTitles.TryGetValue(playerCharacter.ObjectId, out title) && title.IsValid()) return true;
+        if (IpcAssignedTitles.TryGetValue(playerCharacter.EntityId, out title) && title.IsValid()) return true;
         if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
             if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
@@ -584,9 +585,9 @@ public unsafe class Plugin : IDalamudPlugin {
            
             var objectIds = IpcAssignedTitles.Keys.ToList();
             foreach (var chr in PluginService.Objects) {
-                if (chr is PlayerCharacter pc) {
-                    if (objectIds.Remove(pc.ObjectId)) {
-                        PluginService.Log.Verbose($"Object#{pc.ObjectId:X} is still visible. ({chr.Name.TextValue})");
+                if (chr is IPlayerCharacter pc) {
+                    if (objectIds.Remove(pc.EntityId)) {
+                        PluginService.Log.Verbose($"Object#{pc.EntityId:X} is still visible. ({chr.Name.TextValue})");
                     }
                 }
             }

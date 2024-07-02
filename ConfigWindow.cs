@@ -19,6 +19,7 @@ using Dalamud.Memory;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using FFXIVClientStructs.Interop;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using Newtonsoft.Json;
@@ -85,8 +86,8 @@ public class ConfigWindow : Window {
             ImGui.Separator();
 
             foreach (var objectId in Plugin.IpcAssignedTitles.Keys.ToArray()) {
-                var chr = PluginService.Objects.FirstOrDefault(c => c.ObjectId == objectId);
-                if (chr is not PlayerCharacter pc) continue;
+                var chr = PluginService.Objects.FirstOrDefault(c => c.EntityId == objectId);
+                if (chr is not IPlayerCharacter pc) continue;
                 
 
                 var world = PluginService.Data.GetExcelSheet<World>()?.GetRow(pc.HomeWorld.Id);
@@ -135,7 +136,7 @@ public class ConfigWindow : Window {
                 
                 ImGui.SameLine();
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.DotCircle)) {
-                    if (PluginService.Targets.Target is PlayerCharacter pc) {
+                    if (PluginService.Targets.Target is IPlayerCharacter pc) {
                         config.TryAddCharacter(pc.Name.TextValue, pc.HomeWorld.Id);
                     }
                 }
@@ -170,9 +171,9 @@ public class ConfigWindow : Window {
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
-                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is PlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
+                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is IPlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
 
-                if (activePlayer is PlayerCharacter player) {
+                if (activePlayer is IPlayerCharacter player) {
                     var option = UiConfigOption.NamePlateNameTitleTypeOther;
                     var optionGroupNameId = 7712U;
                     if (player.StatusFlags.HasFlag(StatusFlags.PartyMember)) {
@@ -208,20 +209,21 @@ public class ConfigWindow : Window {
                 
                 if (Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
                     
-                    if (activePlayer is PlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
+                    if (activePlayer is IPlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
                         ImGui.TextDisabled($"ObjectID: {activePlayer:X8}");
                         unsafe {
-                            var raptureAtkModule = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
+                            var raptureAtkModule = Framework.Instance()->GetUIModule()->GetRaptureAtkModule();
 
-                            var npi = &raptureAtkModule->NamePlateInfoArray + 1;
-                            for (var i = 0; i < 50 && i < raptureAtkModule->NameplateInfoCount; i++, npi++) {
-                                if (npi->ObjectID.ObjectID == pc.ObjectId) {
-                                    ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectID.ObjectID:X8}");
+                            
+                            for (var i = 0; i < 50 && i < raptureAtkModule->NameplateInfoCount; i++) {
+                                var npi = raptureAtkModule->NamePlateInfoEntries.GetPointer(i);
+                                if (npi->ObjectId.ObjectId == pc.EntityId) {
+                                    ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectId.ObjectId:X8}");
                                     Util.ShowStruct(*npi, (ulong) npi, true, new string[] { $"{(ulong)npi:X}"});
 
                                     var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles);
-                                    
-                                    var currentTitle = npi->DisplayTitle.ToSeString();
+
+                                    var currentTitle = MemoryHelper.ReadSeString(&npi->DisplayTitle);
                                     ImGui.Text($"Current Title:");
                                     ImGui.Indent();
                                     foreach(var p in currentTitle.Payloads) ImGui.Text($"{p}");
@@ -246,11 +248,11 @@ public class ConfigWindow : Window {
                 
                 
 
-                if (activePlayer != null && Plugin.IpcAssignedTitles.TryGetValue(activePlayer.ObjectId, out var title)) {
+                if (activePlayer != null && Plugin.IpcAssignedTitles.TryGetValue(activePlayer.EntityId, out var title)) {
 
                     ImGui.Text("This character's title is currently assigned by another plugin.");
                     if (Plugin.IsDebug && ImGui.Button("Clear IPC Assignment")) {
-                        Plugin.IpcAssignedTitles.Remove(activePlayer.ObjectId);
+                        Plugin.IpcAssignedTitles.Remove(activePlayer.EntityId);
                     }
                     
                     ImGui.BeginDisabled();
@@ -357,12 +359,12 @@ public class ConfigWindow : Window {
                     ImGui.Separator();
 
                     var target = PluginService.Targets.SoftTarget ?? PluginService.Targets.Target;
-                    if (target is PlayerCharacter pc) {
+                    if (target is IPlayerCharacter pc) {
                         if (ImGui.Button($"Test SET IPC for '{target.Name.TextValue}'")) {
-                            PluginService.PluginInterface.GetIpcSubscriber<Character, string, object>("Honorific.SetCharacterTitle").InvokeAction(pc, JsonConvert.SerializeObject(new TitleData {Color = new Vector3(1, 0, 0), Glow = new Vector3(0, 1, 0), Title = "Test Title", IsPrefix = true}));
+                            PluginService.PluginInterface.GetIpcSubscriber<ICharacter, string, object>("Honorific.SetCharacterTitle").InvokeAction(pc, JsonConvert.SerializeObject(new TitleData {Color = new Vector3(1, 0, 0), Glow = new Vector3(0, 1, 0), Title = "Test Title", IsPrefix = true}));
                         }
                         if (ImGui.Button($"Test CLEAR IPC for '{target.Name.TextValue}'")) {
-                            PluginService.PluginInterface.GetIpcSubscriber<Character, object>("Honorific.ClearCharacterTitle").InvokeAction(pc);
+                            PluginService.PluginInterface.GetIpcSubscriber<ICharacter, object>("Honorific.ClearCharacterTitle").InvokeAction(pc);
                         }
                         ImGui.Separator();
                     }
@@ -379,22 +381,22 @@ public class ConfigWindow : Window {
                         
                         ImGui.TableHeadersRow();
                         unsafe {
-                            var ratkm = Framework.Instance()->GetUiModule()->GetRaptureAtkModule();
-                            var npi = &ratkm->NamePlateInfoArray;
-                            for (var i = 0; i < 50 && i < ratkm->NameplateInfoCount; i++, npi++) {
-                                if (npi->ObjectID.ObjectID == 0 && !ImGui.GetIO().KeyShift) continue;
+                            var ratkm = Framework.Instance()->GetUIModule()->GetRaptureAtkModule();
+                            for (var i = 0; i < 50 && i < ratkm->NameplateInfoCount; i++) {
+                                var npi = ratkm->NamePlateInfoEntries.GetPointer(i);
+                                if (npi->ObjectId.ObjectId == 0 && !ImGui.GetIO().KeyShift) continue;
                                 var color = plugin.ModifiedNamePlates.ContainsKey((ulong)npi);
                                 ImGui.PushID($"namePlateInfo_{i}");
                                 if (color) ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudOrange);
                                 ImGui.TableNextColumn();
                                 ImGui.Text($"{i:00}");
                                 ImGui.TableNextColumn();
-                                ImGui.Text($"{npi->ObjectID.ObjectID:X8}:{npi->ObjectID.Type:X2}");
+                                ImGui.Text($"{npi->ObjectId.ObjectId:X8}:{npi->ObjectId.Type:X2}");
                                 ImGui.TableNextColumn();
-                                var name = npi->Name.ToSeString();
+                                var name = MemoryHelper.ReadSeString(&npi->Name);
                                 ImGui.Text($"{name.TextValue}");
                                 ImGui.TableNextColumn();
-                                var title = npi->DisplayTitle.ToSeString();
+                                var title = MemoryHelper.ReadSeString(&npi->DisplayTitle);
                                 ImGui.Text($"{title.TextValue}");
                                 if (color) ImGui.PopStyleColor();
                                 ImGui.TableNextColumn();
@@ -520,7 +522,7 @@ public class ConfigWindow : Window {
         ImGui.EndChild();
     }
 
-    private void DrawCharacterView(CharacterConfig? characterConfig, GameObject? activeCharacter, ref bool modified) {
+    private void DrawCharacterView(CharacterConfig? characterConfig, IGameObject? activeCharacter, ref bool modified) {
         if (characterConfig == null) return;
         
         if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
@@ -693,7 +695,7 @@ public class ConfigWindow : Window {
 
                             var currentGearSetName = string.Empty;
                             var currentGearSet = gearSetModule->GetGearset(title.ConditionParam0);
-                            if (currentGearSet != null && currentGearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) currentGearSetName = MemoryHelper.ReadString(new nint(currentGearSet->Name), 48);
+                            if (currentGearSet != null && currentGearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) currentGearSetName = currentGearSet->NameString;
 
                             if (string.IsNullOrWhiteSpace(currentGearSetName)) currentGearSetName = $"Gear Set #{title.ConditionParam0+1:00}";
 
@@ -704,7 +706,7 @@ public class ConfigWindow : Window {
                                 for (var gearSetIndex = 0; gearSetIndex < 100; gearSetIndex++) {
                                     var name = string.Empty;
                                     var gearSet = gearSetModule->GetGearset(gearSetIndex);
-                                    if (gearSet != null && gearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) name = MemoryHelper.ReadString(new nint(gearSet->Name), 48);
+                                    if (gearSet != null && gearSet->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) name = gearSet->NameString;
                                     if (string.IsNullOrWhiteSpace(name)) name = $"Gear Set #{gearSetIndex+1:00}";
 
                                     if (ImGui.Selectable($"[{gearSetIndex+1:00}] {name}", gearSetIndex == title.ConditionParam0)) {
@@ -767,10 +769,10 @@ public class ConfigWindow : Window {
                         ImGui.SameLine();
                         using (ImRaii.Disabled(activeCharacter == null)) {
                             using (ImRaii.PushFont(UiBuilder.IconFont)) {
-                                if (ImGui.Button($"{(char)FontAwesomeIcon.PersonBurst}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y)) && activeCharacter is PlayerCharacter activePlayerCharacter) {
+                                if (ImGui.Button($"{(char)FontAwesomeIcon.PersonBurst}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y)) && activeCharacter is IPlayerCharacter activePlayerCharacter) {
                                     unsafe {
                                         var c = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)activePlayerCharacter.Address;
-                                        title.ConditionParam0 = c->CharacterData.TitleID;
+                                        title.ConditionParam0 = c->CharacterData.TitleId;
                                     }
                                 }
                             }
@@ -779,11 +781,11 @@ public class ConfigWindow : Window {
                                 ImGui.BeginTooltip();
                                 ImGui.Text("Set to current title");
 
-                                if (activeCharacter is PlayerCharacter activePlayerCharacter) {
+                                if (activeCharacter is IPlayerCharacter activePlayerCharacter) {
                                     unsafe {
                                         var c = (FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)activePlayerCharacter.Address;
 
-                                        var activeTitle = titleSheet.GetRow(c->CharacterData.TitleID);
+                                        var activeTitle = titleSheet.GetRow(c->CharacterData.TitleId);
                                         
                                         ImGui.Text($"\t{GetDisplayTitle(activeTitle)}\t");
                                     }
@@ -908,7 +910,7 @@ public class ConfigWindow : Window {
     private Vector3 editingColour = Vector3.One;
     private bool DrawColorPicker(string label, ref Vector3? color) {
         var modified = false;
-        var comboOpen = false;
+        bool comboOpen;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         if (color == null) {
             ImGui.PushStyleColor(ImGuiCol.FrameBg, 0xFFFFFFFF);

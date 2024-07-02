@@ -88,7 +88,7 @@ public class CustomTitle {
         return UniqueId;
     }
     
-    public unsafe bool MatchesConditions(PlayerCharacter playerCharacter) {
+    public unsafe bool MatchesConditions(IPlayerCharacter playerCharacter) {
         switch (TitleCondition) {
             case TitleConditionType.None:
                 return true;
@@ -98,13 +98,13 @@ public class CustomTitle {
                 if (ConditionParam0 == 0) return false;
                 return playerCharacter.ClassJob.GameData?.IsRole((ClassJobRole)ConditionParam0) ?? false;
             case TitleConditionType.GearSet:
-                if (playerCharacter != PluginService.ClientState.LocalPlayer) return false;
+                if (PluginService.ClientState.LocalPlayer == null || playerCharacter.EntityId != PluginService.ClientState.LocalPlayer.EntityId) return false;
                 var gearSetModule = RaptureGearsetModule.Instance();
                 if (gearSetModule == null) return false;
                 return RaptureGearsetModule.Instance()->CurrentGearsetIndex == ConditionParam0;
             case TitleConditionType.Title:
                 var c = (Character*)playerCharacter.Address;
-                return c->CharacterData.TitleID == ConditionParam0;
+                return c->CharacterData.TitleId == ConditionParam0;
             default:
                 return false;
         }
