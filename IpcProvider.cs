@@ -10,17 +10,17 @@ namespace Honorific;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class IpcProvider {
-    public const uint MajorVersion = 2;
+    public const uint MajorVersion = 3;
     public const uint MinorVersion = 1;
 
     public const string NameSpace = "Honorific";
     
     private static ICallGateProvider<(uint, uint)>? ApiVersion;
 
-    private static ICallGateProvider<ICharacter, string, object>? SetCharacterTitle;
-    private static ICallGateProvider<ICharacter, string>? GetCharacterTitle;
+    private static ICallGateProvider<int, string, object>? SetCharacterTitle;
+    private static ICallGateProvider<int, string>? GetCharacterTitle;
     private static ICallGateProvider<string>? GetLocalCharacterTitle;
-    private static ICallGateProvider<ICharacter, object>? ClearCharacterTitle;
+    private static ICallGateProvider<int, object>? ClearCharacterTitle;
     private static ICallGateProvider<string, object>? LocalCharacterTitleChanged;
     private static ICallGateProvider<string, uint, TitleData[]>? GetCharacterTitleList;
     private static ICallGateProvider<object>? Ready;
@@ -30,9 +30,10 @@ public static class IpcProvider {
         ApiVersion = PluginService.PluginInterface.GetIpcProvider<(uint, uint)>($"{NameSpace}.{nameof(ApiVersion)}");
         ApiVersion.RegisterFunc(() => (MajorVersion, MinorVersion));
         
-        SetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, string, object>($"{NameSpace}.{nameof(SetCharacterTitle)}");
-        SetCharacterTitle.RegisterAction((character, titleDataJson) => {
+        SetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<int, string, object>($"{NameSpace}.{nameof(SetCharacterTitle)}");
+        SetCharacterTitle.RegisterAction((characterIndex, titleDataJson) => {
             try {
+                var character = PluginService.Objects.Length > characterIndex && characterIndex >= 0 ? PluginService.Objects[characterIndex] : null;
                 if (character is not IPlayerCharacter playerCharacter) return;
                 Plugin.IpcAssignedTitles.Remove(playerCharacter.EntityId);
                 if (titleDataJson == string.Empty) return;
@@ -44,8 +45,9 @@ public static class IpcProvider {
             }
         });
         
-        GetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, string>($"{NameSpace}.{nameof(GetCharacterTitle)}");
-        GetCharacterTitle.RegisterFunc(character => {
+        GetCharacterTitle = PluginService.PluginInterface.GetIpcProvider<int, string>($"{NameSpace}.{nameof(GetCharacterTitle)}");
+        GetCharacterTitle.RegisterFunc(characterIndex => {
+            var character = PluginService.Objects.Length > characterIndex && characterIndex >= 0 ? PluginService.Objects[characterIndex] : null;
             if (character is not IPlayerCharacter playerCharacter) return string.Empty;
             if (!plugin.TryGetTitle(playerCharacter, out var title) || title == null) return string.Empty;
             return JsonConvert.SerializeObject((TitleData)title);
@@ -65,8 +67,9 @@ public static class IpcProvider {
             return new TitleData[] { characterConfig.DefaultTitle }.Union(characterConfig.CustomTitles.Select(x => (TitleData)x)).ToArray();
         });
 
-        ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<ICharacter, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
-        ClearCharacterTitle.RegisterAction(character => {
+        ClearCharacterTitle = PluginService.PluginInterface.GetIpcProvider<int, object>($"{NameSpace}.{nameof(ClearCharacterTitle)}");
+        ClearCharacterTitle.RegisterAction(characterIndex => {
+            var character = PluginService.Objects.Length > characterIndex && characterIndex >= 0 ? PluginService.Objects[characterIndex] : null;
             if (character is not IPlayerCharacter playerCharacter) return;
             Plugin.IpcAssignedTitles.Remove(playerCharacter.EntityId);
         });
