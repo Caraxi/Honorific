@@ -124,7 +124,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var name = GetString(3);
         if (name == null || string.IsNullOrWhiteSpace(name.TextValue)) return;
 
-        var server = GetString(36);
+        var server = GetString(77);
         if (server == null || string.IsNullOrWhiteSpace(server.TextValue)) return;
 
         var world = PluginService.Data.GetExcelSheet<World>()?.FirstOrDefault(w => w.IsPublic && w.Name.RawString == server.TextValue);
