@@ -21,10 +21,8 @@ using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.Interop;
 using ImGuiNET;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using Newtonsoft.Json;
-using Title = Lumina.Excel.GeneratedSheets2.Title;
-using World = Lumina.Excel.GeneratedSheets.World;
 
 namespace Honorific; 
 
@@ -52,21 +50,21 @@ public class ConfigWindow : Window {
     public void DrawCharacterList() {
 
         foreach (var (worldId, characters) in config.WorldCharacterDictionary.ToArray()) {
-            var world = PluginService.Data.GetExcelSheet<World>()?.GetRow(worldId);
+            var world = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(worldId);
             if (world == null) continue;
             
-            ImGui.TextDisabled($"{world.Name.RawString}");
+            ImGui.TextDisabled($"{world.Value.Name.ExtractText()}");
             ImGui.Separator();
 
             foreach (var (name, characterConfig) in characters.ToArray()) {
-                if (ImGui.Selectable($"{name}##{world.Name.RawString}", selectedCharacter == characterConfig)) {
+                if (ImGui.Selectable($"{name}##{world.Value.Name.ExtractText()}", selectedCharacter == characterConfig)) {
                     selectedCharacter = characterConfig;
                     selectedName = name;
-                    selectedWorld = world.RowId;
+                    selectedWorld = world.Value.RowId;
                 }
                 
                 if (ImGui.BeginPopupContextItem()) {
-                    if (ImGui.Selectable($"Remove '{name} @ {world.Name.RawString}' from Config")) {
+                    if (ImGui.Selectable($"Remove '{name} @ {world.Value.Name.ExtractText()}' from Config")) {
                         characters.Remove(name);
                         if (selectedCharacter == characterConfig) selectedCharacter = null;
                         if (characters.Count == 0) {
@@ -90,16 +88,16 @@ public class ConfigWindow : Window {
                 if (chr is not IPlayerCharacter pc) continue;
                 
 
-                var world = PluginService.Data.GetExcelSheet<World>()?.GetRow(pc.HomeWorld.Id);
+                var world = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(pc.HomeWorld.RowId);
                 if (world == null) continue;
-                if (ImGui.Selectable($"{chr.Name}##{world.Name.RawString}##ipc", selectedName == chr.Name.TextValue && selectedWorld == pc.HomeWorld.Id)) {
-                    config.TryGetCharacterConfig(chr.Name.TextValue, pc.HomeWorld.Id, out selectedCharacter);
+                if (ImGui.Selectable($"{chr.Name}##{world.Value.Name.ExtractText()}##ipc", selectedName == chr.Name.TextValue && selectedWorld == pc.HomeWorld.RowId)) {
+                    config.TryGetCharacterConfig(chr.Name.TextValue, pc.HomeWorld.RowId, out selectedCharacter);
                     selectedCharacter ??= new CharacterConfig();
                     selectedName = pc.Name.TextValue;
-                    selectedWorld = world.RowId;
+                    selectedWorld = world.Value.RowId;
                 }
                 ImGui.SameLine();
-                ImGui.TextDisabled(world.Name.ToDalamudString().TextValue);
+                ImGui.TextDisabled(world.Value.Name.ExtractText());
             }
             
             ImGuiHelpers.ScaledDummy(10);
@@ -128,7 +126,7 @@ public class ConfigWindow : Window {
             if (PluginService.ClientState.LocalPlayer != null) {
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.User)) {
                     if (PluginService.ClientState.LocalPlayer != null) {
-                        config.TryAddCharacter(PluginService.ClientState.LocalPlayer.Name.TextValue, PluginService.ClientState.LocalPlayer.HomeWorld.Id);
+                        config.TryAddCharacter(PluginService.ClientState.LocalPlayer.Name.TextValue, PluginService.ClientState.LocalPlayer.HomeWorld.RowId);
                     }
                 }
                 
@@ -137,7 +135,7 @@ public class ConfigWindow : Window {
                 ImGui.SameLine();
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.DotCircle)) {
                     if (PluginService.Targets.Target is IPlayerCharacter pc) {
-                        config.TryAddCharacter(pc.Name.TextValue, pc.HomeWorld.Id);
+                        config.TryAddCharacter(pc.Name.TextValue, pc.HomeWorld.RowId);
                     }
                 }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add targeted character");
@@ -171,7 +169,7 @@ public class ConfigWindow : Window {
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
-                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is IPlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.Id == selectedWorld);
+                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is IPlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.RowId == selectedWorld);
 
                 if (activePlayer is IPlayerCharacter player) {
                     var option = UiConfigOption.NamePlateNameTitleTypeOther;
@@ -651,23 +649,19 @@ public class ConfigWindow : Window {
                         break;
                     }
                     case TitleConditionType.ClassJob: {
-                        var sheet = PluginService.Data.GetExcelSheet<ClassJob>();
-                        if (sheet != null) {
-                            ImGui.SameLine();
-                            if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
-                            ImGui.SetNextItemWidth(-1);
-                            var selected = sheet.GetRow((uint)title.ConditionParam0);
-                            if (ImGui.BeginCombo("##conditionClassJob", title.ConditionParam0 == 0 ? "Select..." : selected?.Abbreviation.RawString ?? $"Unknown({title.ConditionParam0}")) {
-                                foreach (var cj in sheet) {
-                                    if (cj.RowId == 0) continue;
-                                    if (ImGui.Selectable(cj.Abbreviation.RawString, title.ConditionParam0 == cj.RowId)) {
-                                        title.ConditionParam0 = (int)cj.RowId;
-                                        modified = true;
-                                    }
+                        ImGui.SameLine();
+                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        ImGui.SetNextItemWidth(-1);
+                        var selected = PluginService.Data.GetExcelSheet<ClassJob>().GetRowOrDefault((uint)title.ConditionParam0);
+                        if (ImGui.BeginCombo("##conditionClassJob", title.ConditionParam0 == 0 ? "Select..." : selected?.Abbreviation.ExtractText() ?? $"Unknown({title.ConditionParam0}")) {
+                            foreach (var cj in PluginService.Data.GetExcelSheet<ClassJob>()) {
+                                if (cj.RowId == 0) continue;
+                                if (ImGui.Selectable(cj.Abbreviation.ExtractText(), title.ConditionParam0 == cj.RowId)) {
+                                    title.ConditionParam0 = (int)cj.RowId;
+                                    modified = true;
                                 }
-                                ImGui.EndCombo();
                             }
-                            
+                            ImGui.EndCombo();
                         }
                         break;
                     }
@@ -724,9 +718,9 @@ public class ConfigWindow : Window {
                         if (titleSheet == null) break;
                         
                         string GetDisplayTitle(Title? t) {
-                            if (t == null || t.RowId == 0) return "No Title";
-                            var masc = t.Masculine?.RawString ?? "No Title";
-                            var fem = t.Feminine?.RawString ?? "No Title";
+                            if (t == null || t?.RowId == 0) return "No Title";
+                            var masc = t?.Masculine.ExtractText() ?? "No Title";
+                            var fem = t?.Feminine.ExtractText() ?? "No Title";
                             
                             var display = string.Equals(masc, fem, StringComparison.InvariantCultureIgnoreCase) ? masc : $"{masc} / {fem}";
                             return display;

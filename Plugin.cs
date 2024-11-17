@@ -18,14 +18,12 @@ using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Plugin;
-using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using Lumina.Excel;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using ObjectKind = FFXIVClientStructs.FFXIV.Client.Game.Object.ObjectKind;
 using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
@@ -49,8 +47,6 @@ public unsafe class Plugin : IDalamudPlugin {
     
     private readonly ConfigWindow configWindow;
     private readonly WindowSystem windowSystem;
-
-    private readonly ExcelSheet<Title>? titleSheet;
     
     private readonly Stopwatch runTime = Stopwatch.StartNew();
     internal static bool IsDebug;
@@ -61,9 +57,6 @@ public unsafe class Plugin : IDalamudPlugin {
     public Plugin(IDalamudPluginInterface pluginInterface) {
         pluginLifespan = new CancellationTokenSource();
         pluginInterface.Create<PluginService>();
-
-        titleSheet = PluginService.Data.GetExcelSheet<Title>();
-        if (titleSheet == null) throw new Exception("Failed to load ExcelSheet<Title>");
         
         Config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
 
@@ -127,10 +120,9 @@ public unsafe class Plugin : IDalamudPlugin {
         var server = GetString(77);
         if (server == null || string.IsNullOrWhiteSpace(server.TextValue)) return;
 
-        var world = PluginService.Data.GetExcelSheet<World>()?.FirstOrDefault(w => w.IsPublic && w.Name.RawString == server.TextValue);
-        if (world == null) return;
+        if (!PluginService.Data.GetExcelSheet<World>().TryGetFirst(w => w.IsPublic && w.Name.ExtractText() == server.TextValue, out var world)) return;
 
-        var obj = PluginService.Objects.FirstOrDefault(c => c is IPlayerCharacter pc && c.Name.TextValue == name.TextValue && pc.HomeWorld.Id == world.RowId);
+        var obj = PluginService.Objects.FirstOrDefault(c => c is IPlayerCharacter pc && c.Name.TextValue == name.TextValue && pc.HomeWorld.RowId == world.RowId);
         if (obj is not IPlayerCharacter playerCharacter) return;
 
         if (!TryGetTitle(playerCharacter, out var title) || title == null) return;
@@ -169,7 +161,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
                         return;
                     }
@@ -224,7 +216,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
                         return;
                     }
@@ -244,7 +236,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
                         return;
                     }
@@ -261,7 +253,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
                         return;
                     }
@@ -504,11 +496,11 @@ public unsafe class Plugin : IDalamudPlugin {
         
         var character = (Character*) playerCharacter.Address;
         var titleId = character->CharacterData.TitleId;
-        var titleData = titleSheet!.GetRow(titleId);
+        var titleData = PluginService.Data.GetExcelSheet<Title>().GetRowOrDefault(titleId);
         if (titleData == null) return title;
-        var genderedTitle = character->GameObject.Sex == 0 ? titleData.Masculine : titleData.Feminine;
-        title.Title = genderedTitle.ToDalamudString().TextValue;
-        title.IsPrefix = titleData.IsPrefix;
+        var genderedTitle = character->GameObject.Sex == 0 ? titleData.Value.Masculine : titleData.Value.Feminine;
+        title.Title = genderedTitle.ExtractText();
+        title.IsPrefix = titleData.Value.IsPrefix;
         title.IsOriginal = true;
         return title;
     }
@@ -522,7 +514,7 @@ public unsafe class Plugin : IDalamudPlugin {
             return true;
         }
         if (IpcAssignedTitles.TryGetValue(playerCharacter.EntityId, out title) && title.IsValid()) return true;
-        if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.Id, out var characterConfig) || characterConfig == null) {
+        if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
             if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
             return true;

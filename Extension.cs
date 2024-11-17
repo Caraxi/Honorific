@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Memory;
@@ -39,5 +40,19 @@ public static unsafe class Extension {
         byteList.Add(0);
         return byteList.ToArray();
     }
+    
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool TryGetFirst<T>(this IEnumerable<T> values, Func<T, bool> predicate, out T result) where T : struct
+    {
+        foreach(var val in values)
+            if (predicate(val)) {
+                result = val;
+                return true;
+            }
+        result = default;
+        return false;
+    }
+
     
 }

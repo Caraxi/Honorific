@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace Honorific; 
 
@@ -25,8 +25,8 @@ public enum ClassJobRole {
 }
 
 public static class ClassJobRoleExtenstion {
-    public static bool IsRole(this ClassJob? job, ClassJobRole role) {
-        if (job == null || job.RowId == 0) return false;
+    public static bool IsRole(this ClassJob job, ClassJobRole role) {
+        if (job.RowId == 0) return false;
         return role switch {
             ClassJobRole.None => false,
             ClassJobRole.Tank => job.Role == 1,
@@ -34,8 +34,8 @@ public static class ClassJobRoleExtenstion {
             ClassJobRole.DPS => job.Role is 2 or 3 or 5,
             ClassJobRole.NonCombat => job.Role == 0,
             ClassJobRole.MeleeDPS => job.Role == 2,
-            ClassJobRole.RangedPhysicalDPS => job.LimitBreak1.Row == 4238,
-            ClassJobRole.RangedMagicalDPS => job.LimitBreak1.Row == 203 || job.RowId == 36,
+            ClassJobRole.RangedPhysicalDPS => job.LimitBreak1.RowId == 4238,
+            ClassJobRole.RangedMagicalDPS => job.LimitBreak1.RowId == 203 || job.RowId == 36,
             ClassJobRole.Crafter => job.RowId is >= 8 and <= 15,
             ClassJobRole.Gatherer => job.RowId is 16 or 17 or 18,
             _ => false

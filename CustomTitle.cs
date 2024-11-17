@@ -93,10 +93,10 @@ public class CustomTitle {
             case TitleConditionType.None:
                 return true;
             case TitleConditionType.ClassJob:
-                return ConditionParam0 == playerCharacter.ClassJob.Id;
+                return ConditionParam0 == playerCharacter.ClassJob.RowId;
             case TitleConditionType.JobRole:
                 if (ConditionParam0 == 0) return false;
-                return playerCharacter.ClassJob.GameData?.IsRole((ClassJobRole)ConditionParam0) ?? false;
+                return playerCharacter.ClassJob.Value.IsRole((ClassJobRole)ConditionParam0);
             case TitleConditionType.GearSet:
                 if (PluginService.ClientState.LocalPlayer == null || playerCharacter.EntityId != PluginService.ClientState.LocalPlayer.EntityId) return false;
                 var gearSetModule = RaptureGearsetModule.Instance();
