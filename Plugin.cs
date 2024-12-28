@@ -482,7 +482,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var title = new CustomTitle();
         
         bool hideVanilla;
-        if (playerCharacter == PluginService.ClientState.LocalPlayer) hideVanilla = Config.HideVanillaSelf;
+        if (playerCharacter.ObjectIndex == 0) hideVanilla = Config.HideVanillaSelf;
         else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.PartyMember)) hideVanilla = Config.HideVanillaParty;
         else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.AllianceMember)) hideVanilla = Config.HideVanillaAlliance;
         else if (playerCharacter.StatusFlags.HasFlag(StatusFlags.Friend)) hideVanilla = Config.HideVanillaFriends;
