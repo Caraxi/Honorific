@@ -60,6 +60,14 @@ public unsafe class Plugin : IDalamudPlugin {
         
         Config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
 
+        foreach (var (_, worlds) in Config.WorldCharacterDictionary) {
+            foreach (var (_, character) in worlds) {
+                foreach (var t in character.CustomTitles) {
+                    t.UpdateWarning();
+                }
+            }
+        }
+
         windowSystem = new WindowSystem(Assembly.GetExecutingAssembly().FullName);
         configWindow = new ConfigWindow($"{Name} | Config", this, Config) {
             #if DEBUG

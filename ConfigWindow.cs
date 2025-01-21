@@ -976,9 +976,23 @@ public class ConfigWindow : Window {
     }
     
     
-    private void DrawTitleCommon(CustomTitle title, ref bool modified) {
+    private void DrawTitleCommon(CustomTitle title, ref bool anyModified) {
+        var modified = false;
         ImGui.TableNextColumn();
-        ImGui.SetNextItemWidth(-1);
+        
+        if (!string.IsNullOrWhiteSpace(title.WarningMessage)) {
+            using (ImRaii.PushFont(UiBuilder.IconFont)) {
+                ImGui.TextColored(title.WarningColour, FontAwesomeIcon.ExclamationTriangle.ToIconString());
+            }
+
+            if (ImGui.IsItemHovered()) {
+                ImGui.SetTooltip(title.WarningMessage);
+            }
+            
+            ImGui.SameLine();
+        }
+
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
@@ -991,6 +1005,11 @@ public class ConfigWindow : Window {
             modified |= DrawColorPicker("##glow", ref title.Glow); 
         }
 
+        if (modified) {
+            anyModified = true;
+            title.UpdateWarning();
+        }
+        
         ImGui.TableNextColumn();
     }
 

@@ -1,8 +1,11 @@
 ﻿using System.Linq;
 using System;
 using System.Numerics;
+using System.Text;
+using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Interface.Colors;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
@@ -32,7 +35,7 @@ public class TitleData {
     };
 }
 
-public class CustomTitle {
+public partial class CustomTitle {
     public string? Title = string.Empty;
     public bool IsPrefix;
     public bool IsOriginal;
@@ -45,6 +48,8 @@ public class CustomTitle {
     public Vector3? Color;
     public Vector3? Glow;
     
+    [JsonIgnore] public string WarningMessage = string.Empty;
+    [JsonIgnore] public Vector4 WarningColour = ImGuiColors.DalamudWhite;
     [JsonIgnore] public string DisplayTitle => $"《{Title}》";
 
     public bool IsValid() {
@@ -107,6 +112,30 @@ public class CustomTitle {
                 return c->CharacterData.TitleId == ConditionParam0;
             default:
                 return false;
+        }
+    }
+    
+    [GeneratedRegex("^[-a-zA-Z0-9@:%._\\+~#=]{1,256}[\\.,][a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")]
+    private static partial Regex UrlRegex();
+    
+    public void UpdateWarning() {
+        WarningMessage = string.Empty;
+
+        if (!IsValid()) {
+            WarningMessage = "Title is invalid.\nThis title will not be displayed.";
+            WarningColour = ImGuiColors.DalamudRed;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Title)) return;
+        
+        var mare = PluginService.PluginInterface.InstalledPlugins.FirstOrDefault(p => string.Equals(p.InternalName, "MareSynchronos", StringComparison.InvariantCultureIgnoreCase) && p.IsLoaded);
+        if ( mare != null) {
+            var title = Title.Normalize(NormalizationForm.FormKD);
+            if (UrlRegex().IsMatch(title)) {
+                WarningMessage = $"This title will not be accepted by {mare.Name} and will prevent syncing of your character.\nPlease do not use URLs in your title.";
+                WarningColour = ImGuiColors.DalamudRed;
+            }
         }
     }
 }
