@@ -12,6 +12,7 @@ public class PluginConfig : IPluginConfiguration {
     public bool DebugOpenOnStatup = true;
     public bool HideKofi = false;
     public bool ApplyToInspect = true;
+    public bool DisplayPreviewInConfigWindow = true;
 
     public bool HideVanillaSelf;
     public bool HideVanillaParty;

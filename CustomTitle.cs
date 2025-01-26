@@ -51,6 +51,7 @@ public partial class CustomTitle {
     [JsonIgnore] public string WarningMessage = string.Empty;
     [JsonIgnore] public Vector4 WarningColour = ImGuiColors.DalamudWhite;
     [JsonIgnore] public string DisplayTitle => $"《{Title}》";
+    [JsonIgnore] public bool EditorActive;
 
     public bool IsValid() {
         if (Title == null) return false;

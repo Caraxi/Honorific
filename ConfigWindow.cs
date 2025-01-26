@@ -12,6 +12,7 @@ using Dalamud.Game.Config;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
+using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
@@ -319,6 +320,7 @@ public class ConfigWindow : Window {
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
                 ImGui.Checkbox("Display titles in 'Examine' window.", ref config.ApplyToInspect);
+                ImGui.Checkbox("Display preview in config window.", ref config.DisplayPreviewInConfigWindow);
                 
                 if (ImGuiExt.TriStateCheckbox("##HideVanillaAll", out var setAll, config.HideVanillaSelf, config.HideVanillaParty, config.HideVanillaAlliance, config.HideVanillaFriends, config.HideVanillaOther)) {
                     if (setAll != null) {
@@ -993,7 +995,18 @@ public class ConfigWindow : Window {
         }
 
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
+        using (ImRaii.PushColor(ImGuiCol.Text, 0, !title.EditorActive && config.DisplayPreviewInConfigWindow)) {
+            modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
+            title.EditorActive = ImGui.IsItemActive();
+            if (!title.EditorActive && config.DisplayPreviewInConfigWindow) {
+                ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                var dl = ImGui.GetWindowDrawList();
+                dl.PushClipRect(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding, ImGui.GetItemRectMax() - ImGui.GetStyle().FramePadding);
+                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                dl.PopClipRect();
+            }
+        }
+
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
         modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
