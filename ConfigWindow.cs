@@ -292,26 +292,49 @@ public class ConfigWindow : Window {
                 }
                 
                 ImGui.SameLine();
-                if (ImGui.Button("Import Titles from Clipboard")) {
-                    try {
-                        var b64 = ImGui.GetClipboardText();
-                        var bytes = Convert.FromBase64String(b64);
-                        using var str = new MemoryStream(bytes);
-                        using var gzStream = new GZipStream(str, CompressionMode.Decompress);
-                        using var outStr = new MemoryStream();
-                        gzStream.CopyTo(outStr);
-                        var outBytes = outStr.ToArray();
-                        var json = Encoding.UTF8.GetString(outBytes);
+                using (ImRaii.Disabled(!(ImGui.GetIO().KeyShift ^ (ImGui.GetIO().KeyAlt && ImGui.GetIO().KeyCtrl)))) {
+                    if (ImGui.Button("Import Titles from Clipboard")) {
+                        try {
+                            var b64 = ImGui.GetClipboardText();
+                            var bytes = Convert.FromBase64String(b64);
+                            using var str = new MemoryStream(bytes);
+                            using var gzStream = new GZipStream(str, CompressionMode.Decompress);
+                            using var outStr = new MemoryStream();
+                            gzStream.CopyTo(outStr);
+                            var outBytes = outStr.ToArray();
+                            var json = Encoding.UTF8.GetString(outBytes);
 
-                        var importedCharacter = JsonConvert.DeserializeObject<CharacterConfig>(json);
-                        if (importedCharacter is { CustomTitles: { }, DefaultTitle: { } }) {
-                            selectedCharacter.CustomTitles.Clear();
-                            selectedCharacter.CustomTitles.AddRange(importedCharacter.CustomTitles);
-                            selectedCharacter.DefaultTitle = importedCharacter.DefaultTitle;
+                            var importedCharacter = JsonConvert.DeserializeObject<CharacterConfig>(json);
+                            if (importedCharacter is { CustomTitles: { }, DefaultTitle: { } }) {
+
+                                if (ImGui.GetIO().KeyShift) {
+                                    var i = selectedCharacter.CustomTitles.Count;
+                                    selectedCharacter.CustomTitles.AddRange(importedCharacter.CustomTitles);
+                                    selectedCharacter.CustomTitles.Add(importedCharacter.DefaultTitle);
+                                    // Remake IDs
+                                    for (;i < selectedCharacter.CustomTitles.Count; i++) {
+                                        selectedCharacter.CustomTitles[i].UniqueId = string.Empty;
+                                        selectedCharacter.CustomTitles[i].GetUniqueId(selectedCharacter);
+                                    }
+                                } else if (ImGui.GetIO().KeyAlt && ImGui.GetIO().KeyCtrl) {
+                                    selectedCharacter.CustomTitles.Clear();
+                                    selectedCharacter.CustomTitles.AddRange(importedCharacter.CustomTitles);
+                                    selectedCharacter.DefaultTitle = importedCharacter.DefaultTitle;
+                                }
+                                
+                                
+                            }
+                        } catch (Exception ex) {
+                            PluginService.Log.Error(ex, "Error decoding clipboard text");
                         }
-                    } catch (Exception ex) {
-                        PluginService.Log.Error(ex, "Error decoding clipboard text");
                     }
+                }
+
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) {
+                    ImGui.BeginTooltip();
+                    ImGui.Text("Hold SHIFT to import titles, keeping existing titles.");
+                    ImGui.TextDisabled("Hold CTRL and ALT to import titles, replacing existing titles.");
+                    ImGui.EndTooltip();
                 }
 
                 DrawCharacterView(selectedCharacter, activePlayer, ref modified);
@@ -626,6 +649,9 @@ public class ConfigWindow : Window {
                     ImGui.Text("Toggle this title");
                     ImGui.Spacing();
                     ImGui.TextDisabled("Right click to copy toggle command.");
+#if DEBUG
+                    ImGui.TextDisabled($"{title.GetUniqueId(characterConfig)}");
+#endif
                     ImGui.EndTooltip();
                 }
                 if (ImGui.IsItemClicked(ImGuiMouseButton.Right)) {
@@ -995,6 +1021,9 @@ public class ConfigWindow : Window {
                 ImGui.Text("Toggle this title");
                 ImGui.Spacing();
                 ImGui.TextDisabled("Right click to copy toggle command.");
+#if DEBUG
+                ImGui.TextDisabled($"{characterConfig.DefaultTitle.GetUniqueId(characterConfig)}");
+#endif
                 ImGui.EndTooltip();
             }
             if (ImGui.IsItemClicked(ImGuiMouseButton.Right)) {
