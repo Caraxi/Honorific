@@ -812,6 +812,13 @@ public class ConfigWindow : Window {
                         previewName.Append(currentLocation?.PlaceName.ValueNullable?.Name.ExtractText() ?? "Select Location");
                         if (title.LocationCondition.ShouldSerializeWard()) {
                             previewName.Append(" (");
+                            if (title.LocationCondition.World != null) {
+                                var world = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(title.LocationCondition.World.Value);
+                                if (world != null) {
+                                    previewName.Append($"{world.Value.Name.ExtractText()}, ");
+                                }
+                            }
+                            
                             if (title.LocationCondition.Ward == null) {
                                 previewName.Append("Any Ward");
                             } else {
@@ -835,6 +842,20 @@ public class ConfigWindow : Window {
                         
                         if (ImGui.BeginCombo("##locationTerritoryType", previewName.ToString(), ImGuiComboFlags.HeightLargest)) {
                             if (title.LocationCondition.ShouldSerializeWard()) {
+                                var world = title.LocationCondition.World == null ? null : PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(title.LocationCondition.World.Value);
+                                using (ImRaii.PushColor(ImGuiCol.Border, ImGui.GetColorU32(ImGuiCol.NavHighlight)))
+                                using (ImRaii.PushStyle(ImGuiStyleVar.PopupBorderSize, 2)) {
+                                    if (ImGui.BeginCombo("World", world?.Name.ExtractText() ?? "Any World")) {
+                                        foreach (var w in PluginService.Data.GetExcelSheet<World>().Where(w => w.IsPlayerWorld()).OrderBy(w => w.Name.ExtractText())) {
+                                            if (ImGui.Selectable(w.Name.ExtractText())) {
+                                                title.LocationCondition.World = w.RowId;
+                                            }
+                                        }
+                                    
+                                        ImGui.EndCombo();
+                                    }
+                                }
+
                                 var ward = title.LocationCondition.Ward ?? -1;
                                 if (ImGui.SliderInt("Ward", ref ward, -1, 29, ward == -1 ? "Any Ward" : $"Ward {ward + 1}", ImGuiSliderFlags.AlwaysClamp | ImGuiSliderFlags.NoInput)) {
                                     title.LocationCondition.Ward = ward < 0 ? null : ward;
@@ -910,9 +931,10 @@ public class ConfigWindow : Window {
                                 if (ImGui.Button($"{(char)FontAwesomeIcon.MapMarked}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y)) && PluginService.ClientState.IsLoggedIn) {
                                     title.LocationCondition.TerritoryType = PluginService.ClientState.TerritoryType;
                                     unsafe {
-                                        title.LocationCondition.Ward = HousingManager.Instance()->GetCurrentWard();
-                                        title.LocationCondition.Plot = HousingManager.Instance()->GetCurrentPlot();
-                                        title.LocationCondition.Room = HousingManager.Instance()->GetCurrentRoom();
+                                        title.LocationCondition.Ward = title.LocationCondition.ShouldSerializeWard() ? HousingManager.Instance()->GetCurrentWard() : null;
+                                        title.LocationCondition.Plot = title.LocationCondition.ShouldSerializePlot() ? HousingManager.Instance()->GetCurrentPlot() : null;
+                                        title.LocationCondition.Room = title.LocationCondition.ShouldSerializeRoom() ? HousingManager.Instance()->GetCurrentRoom() : null;
+                                        title.LocationCondition.World = title.LocationCondition.ShouldSerializeWorld() ? PluginService.ClientState.LocalPlayer?.CurrentWorld.RowId ?? null : null;
                                     }
                                 }
                             }

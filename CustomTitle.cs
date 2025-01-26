@@ -8,6 +8,7 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Colors;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
 
@@ -119,6 +120,7 @@ public partial class CustomTitle {
             case TitleConditionType.Location:
                 if (LocationCondition == null) return false;
                 if (LocationCondition.TerritoryType != PluginService.ClientState.TerritoryType) return false;
+                if (LocationCondition.World != null && LocationCondition.World.Value != playerCharacter.CurrentWorld.RowId) return false;
                 if (!LocationCondition.ShouldSerializeWard() || LocationCondition.Ward == null) return true;
                 if (HousingManager.Instance()->GetCurrentWard() != LocationCondition.Ward) return false;
                 if (!LocationCondition.ShouldSerializePlot() || LocationCondition.Plot == null) return true;

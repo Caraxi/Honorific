@@ -5,6 +5,7 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Memory;
 using FFXIVClientStructs.FFXIV.Client.System.String;
+using Lumina.Excel.Sheets;
 
 namespace Honorific; 
 
@@ -55,4 +56,10 @@ public static unsafe class Extension {
     }
 
     
+    public static bool IsPlayerWorld(this World world) {
+        if (world.Name.Data.IsEmpty) return false;
+        if (world.DataCenter.RowId == 0) return false;
+        if (world.IsPublic) return true;
+        return char.IsUpper((char)world.Name.Data.Span[0]);
+    }
 }
