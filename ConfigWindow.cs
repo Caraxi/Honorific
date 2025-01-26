@@ -18,6 +18,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Utility;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.Interop;
@@ -47,6 +48,7 @@ public class ConfigWindow : Window {
     private float checkboxSize = 36;
 
     private string gameTitleSearch = string.Empty;
+    private string locationSearch = string.Empty;
 
     public void DrawCharacterList() {
 
@@ -632,13 +634,14 @@ public class ConfigWindow : Window {
                 
                 DrawTitleCommon(title, ref modified);
 
-                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 250 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 150 * ImGuiHelpers.GlobalScale);
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 350 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 150 * ImGuiHelpers.GlobalScale);
                 if (ImGui.BeginCombo("##conditionType", title.TitleCondition.GetAttribute<DescriptionAttribute>()?.Description ?? $"{title.TitleCondition}")) {
                     foreach (var v in Enum.GetValues<TitleConditionType>()) {
                         if (ImGui.Selectable(v.GetAttribute<DescriptionAttribute>()?.Description ?? $"{v}", v == title.TitleCondition)) {
                             if (title.TitleCondition != v) {
                                 title.TitleCondition = v;
                                 title.ConditionParam0 = 0;
+                                title.LocationCondition = null;
                                 modified = true;
                             }
                         }
@@ -652,7 +655,7 @@ public class ConfigWindow : Window {
                     }
                     case TitleConditionType.ClassJob: {
                         ImGui.SameLine();
-                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        if (ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
                         ImGui.SetNextItemWidth(-1);
                         var selected = PluginService.Data.GetExcelSheet<ClassJob>().GetRowOrDefault((uint)title.ConditionParam0);
                         if (ImGui.BeginCombo("##conditionClassJob", title.ConditionParam0 == 0 ? "Select..." : selected?.Abbreviation.ExtractText() ?? $"Unknown({title.ConditionParam0}")) {
@@ -671,7 +674,7 @@ public class ConfigWindow : Window {
                     case TitleConditionType.JobRole: {
                         var selected = (ClassJobRole)title.ConditionParam0;
                         ImGui.SameLine();
-                        if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                        if (ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
                         ImGui.SetNextItemWidth(-1);
                         if (ImGui.BeginCombo("##conditionRole", selected.GetAttribute<DescriptionAttribute>()?.Description ?? $"{selected}")) {
                             foreach (var v in Enum.GetValues<ClassJobRole>()) {
@@ -696,7 +699,7 @@ public class ConfigWindow : Window {
                             if (string.IsNullOrWhiteSpace(currentGearSetName)) currentGearSetName = $"Gear Set #{title.ConditionParam0+1:00}";
 
                             ImGui.SameLine();
-                            if (ImGui.GetContentRegionAvail().X < 90 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+                            if (ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
                             ImGui.SetNextItemWidth(-1);
                             if (ImGui.BeginCombo("##conditionGearset", $"[{title.ConditionParam0+1}] {currentGearSetName}")) {
                                 for (var gearSetIndex = 0; gearSetIndex < 100; gearSetIndex++) {
@@ -796,6 +799,134 @@ public class ConfigWindow : Window {
                             
                         break;
                     }
+                    case TitleConditionType.Location: {
+                        title.LocationCondition ??= new LocationCondition();
+
+                        var currentLocation = title.LocationCondition.TerritoryType == 0 ? null : PluginService.Data.GetExcelSheet<TerritoryType>().GetRowOrDefault(title.LocationCondition.TerritoryType);
+                        ImGui.SameLine();
+                        if (ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale) ImGui.NewLine();
+
+
+                        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X - 45 * ImGuiHelpers.GlobalScale);
+                        var previewName = new StringBuilder();
+                        previewName.Append(currentLocation?.PlaceName.ValueNullable?.Name.ExtractText() ?? "Select Location");
+                        if (title.LocationCondition.ShouldSerializeWard()) {
+                            previewName.Append(" (");
+                            if (title.LocationCondition.Ward == null) {
+                                previewName.Append("Any Ward");
+                            } else {
+                                previewName.Append($"w{title.LocationCondition.Ward + 1}");
+                            }
+
+                            if (title.LocationCondition.ShouldSerializePlot() && title.LocationCondition.Plot != null) {
+                                if (title.LocationCondition.IsApartment()) {
+                                    previewName.Append(title.LocationCondition.Plot == -126 ? "Sub" : "Main");
+                                } else {
+                                    previewName.Append($"p{title.LocationCondition.Plot + 1}");
+                                }
+                                
+                                if (title.LocationCondition.ShouldSerializeRoom() && title.LocationCondition.Room != null) {
+                                    previewName.Append($"r{title.LocationCondition.Room}");
+                                }
+                            }
+                            
+                            previewName.Append(')');
+                        }
+                        
+                        if (ImGui.BeginCombo("##locationTerritoryType", previewName.ToString(), ImGuiComboFlags.HeightLargest)) {
+                            if (title.LocationCondition.ShouldSerializeWard()) {
+                                var ward = title.LocationCondition.Ward ?? -1;
+                                if (ImGui.SliderInt("Ward", ref ward, -1, 29, ward == -1 ? "Any Ward" : $"Ward {ward + 1}", ImGuiSliderFlags.AlwaysClamp | ImGuiSliderFlags.NoInput)) {
+                                    title.LocationCondition.Ward = ward < 0 ? null : ward;
+                                }
+                                
+                                if (title.LocationCondition.ShouldSerializePlot()) {
+                                    if (title.LocationCondition.IsApartment()) {
+                                        var div = title.LocationCondition.Plot switch {
+                                            -126 => 2,
+                                            -127 => 1,
+                                            _ => 0
+                                        };
+                                        if (ImGui.SliderInt("Division", ref div, 0, 2, div switch {
+                                                1 => "Main Division",
+                                                2 => "Sub Division",
+                                                _ => "All Divisions"
+                                            }, ImGuiSliderFlags.AlwaysClamp | ImGuiSliderFlags.NoInput)) {
+                                            title.LocationCondition.Plot = div switch {
+                                                1 => -127,
+                                                2 => -126,
+                                                _ => null
+                                            };
+                                        }
+                                    } else {
+                                        var plot = title.LocationCondition.Plot ?? -1;
+                                        if (ImGui.SliderInt("Plot", ref plot, -1, 59, plot == -1 ? "Any Plot" : $"Plot {plot + 1}")) {
+                                            title.LocationCondition.Plot = plot < 0 ? null : plot;
+                                        }
+                                    }
+                                    
+                                    if (title.LocationCondition.ShouldSerializeRoom()) {
+                                        var room = title.LocationCondition.Room ?? 0;
+                                        if (ImGui.SliderInt("Room", ref room, 0, title.LocationCondition.IsApartment() ? 90 : 512, room == 0 ? "Any Room" : $"Room {room}", ImGuiSliderFlags.AlwaysClamp | ImGuiSliderFlags.NoInput)) {
+                                            title.LocationCondition.Room = room <= 0 ? null : room;
+                                        }
+                                    }
+                                }
+
+                                ImGui.Separator();
+                            }
+
+                            if (ImGui.IsWindowAppearing()) {
+                                locationSearch = string.Empty;
+                                ImGui.SetKeyboardFocusHere();
+                            }
+
+                            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+                            ImGui.InputText("##locationSearch", ref locationSearch, 100);
+                            if (ImGui.BeginChild("locationScroll", new Vector2(ImGui.GetContentRegionAvail().X, 250 * ImGuiHelpers.GlobalScale))) {
+                                foreach (var location in ListCache.TerritoryTypeNames.Value) {
+                                    if (!locationSearch.IsNullOrWhitespace() && !location.name.Contains(locationSearch, StringComparison.InvariantCultureIgnoreCase)) continue;
+                                    if (ImGui.Selectable($"{location.name}##{location.territoryTypeId}", title.LocationCondition.TerritoryType == location.territoryTypeId)) {
+                                        title.LocationCondition.TerritoryType = location.territoryTypeId;
+                                        if (!title.LocationCondition.ShouldSerializeWard()) title.LocationCondition.Ward = null;
+                                        if (!title.LocationCondition.ShouldSerializePlot()) title.LocationCondition.Plot = null;
+                                        if (title.LocationCondition.IsApartment() && title.LocationCondition.Plot is not (-126 or -127)) title.LocationCondition.Plot = null;
+                                        if (!title.LocationCondition.IsApartment() && title.LocationCondition.Plot is < 0 or > 59) title.LocationCondition.Plot = null;
+                                        if (!title.LocationCondition.ShouldSerializeRoom()) title.LocationCondition.Room = null;
+                                    }
+                                    ImGui.SameLine();
+                                    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize($"[{location.territoryTypeId}]").X);
+                                    ImGui.TextDisabled($"[{location.territoryTypeId}]");
+                                }
+                            }
+                            ImGui.EndChild();
+                            
+                            ImGui.EndCombo();
+                        }
+                        
+                        ImGui.SameLine();
+                        using (ImRaii.Disabled(!PluginService.ClientState.IsLoggedIn)) {
+                            using (ImRaii.PushFont(UiBuilder.IconFont)) {
+                                if (ImGui.Button($"{(char)FontAwesomeIcon.MapMarked}", new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y)) && PluginService.ClientState.IsLoggedIn) {
+                                    title.LocationCondition.TerritoryType = PluginService.ClientState.TerritoryType;
+                                    unsafe {
+                                        title.LocationCondition.Ward = HousingManager.Instance()->GetCurrentWard();
+                                        title.LocationCondition.Plot = HousingManager.Instance()->GetCurrentPlot();
+                                        title.LocationCondition.Room = HousingManager.Instance()->GetCurrentRoom();
+                                    }
+                                }
+                            }
+
+                            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) {
+                                ImGui.BeginTooltip();
+                                ImGui.Text("Set to current location");
+                                ImGui.EndTooltip();
+                            }
+                        }
+                        
+                        break;
+                    }
+                        
                 }
 
                 ImGui.PopID();

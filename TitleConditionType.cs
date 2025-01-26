@@ -16,4 +16,7 @@ public enum TitleConditionType {
     
     [Description("Original Title")]
     Title,
+    
+    [Description("Location")]
+    Location,
 }

@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Colors;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
@@ -44,6 +45,9 @@ public partial class CustomTitle {
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
     public int ConditionParam0;
+
+    public bool ShouldSerializeLocationCondition() => TitleCondition == TitleConditionType.Location;
+    public LocationCondition? LocationCondition;
 
     public Vector3? Color;
     public Vector3? Glow;
@@ -95,6 +99,7 @@ public partial class CustomTitle {
     }
     
     public unsafe bool MatchesConditions(IPlayerCharacter playerCharacter) {
+        using var _ = PerformanceMonitors.Run($"MatchesConditionCheck:{TitleCondition}");
         switch (TitleCondition) {
             case TitleConditionType.None:
                 return true;
@@ -111,6 +116,15 @@ public partial class CustomTitle {
             case TitleConditionType.Title:
                 var c = (Character*)playerCharacter.Address;
                 return c->CharacterData.TitleId == ConditionParam0;
+            case TitleConditionType.Location:
+                if (LocationCondition == null) return false;
+                if (LocationCondition.TerritoryType != PluginService.ClientState.TerritoryType) return false;
+                if (!LocationCondition.ShouldSerializeWard() || LocationCondition.Ward == null) return true;
+                if (HousingManager.Instance()->GetCurrentWard() != LocationCondition.Ward) return false;
+                if (!LocationCondition.ShouldSerializePlot() || LocationCondition.Plot == null) return true;
+                if (HousingManager.Instance()->GetCurrentPlot() != LocationCondition.Plot) return false;
+                if (!LocationCondition.ShouldSerializeRoom() || LocationCondition.Room == null) return true;
+                return HousingManager.Instance()->GetCurrentRoom() == LocationCondition.Room;
             default:
                 return false;
         }
