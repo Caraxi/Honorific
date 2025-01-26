@@ -933,6 +933,7 @@ public class ConfigWindow : Window {
                                     unsafe {
                                         title.LocationCondition.Ward = title.LocationCondition.ShouldSerializeWard() ? HousingManager.Instance()->GetCurrentWard() : null;
                                         title.LocationCondition.Plot = title.LocationCondition.ShouldSerializePlot() ? HousingManager.Instance()->GetCurrentPlot() : null;
+                                        if (title.LocationCondition.Plot is < 0) title.LocationCondition.Plot = null;
                                         title.LocationCondition.Room = title.LocationCondition.ShouldSerializeRoom() ? HousingManager.Instance()->GetCurrentRoom() : null;
                                         title.LocationCondition.World = title.LocationCondition.ShouldSerializeWorld() ? PluginService.ClientState.LocalPlayer?.CurrentWorld.RowId ?? null : null;
                                     }
