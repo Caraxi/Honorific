@@ -1184,7 +1184,11 @@ public class ConfigWindow : Window {
             if (!title.EditorActive && config.DisplayPreviewInConfigWindow) {
                 ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
                 var dl = ImGui.GetWindowDrawList();
-                dl.PushClipRect(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding, ImGui.GetItemRectMax() - ImGui.GetStyle().FramePadding);
+                var clipMin = ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding;
+                var clipMax = ImGui.GetItemRectMax() - ImGui.GetStyle().FramePadding;
+                clipMin.Y = MathF.Max(clipMin.Y, ImGui.GetWindowPos().Y);
+                clipMax.Y = MathF.Min(clipMax.Y, ImGui.GetWindowPos().Y + ImGui.GetWindowHeight());
+                dl.PushClipRect(clipMin, clipMax);
                 ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
                 dl.PopClipRect();
             }
