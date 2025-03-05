@@ -49,6 +49,8 @@ public class ConfigWindow : Window {
 
     private string gameTitleSearch = string.Empty;
     private string locationSearch = string.Empty;
+    private Vector3? dragColour;
+    private bool dragging;
 
     public void DrawCharacterList() {
 
@@ -1087,7 +1089,8 @@ public class ConfigWindow : Window {
     }
 
     private Vector3 editingColour = Vector3.One;
-    private bool DrawColorPicker(string label, ref Vector3? color) {
+    private bool DrawColorPicker(string label, ref Vector3? color, bool showArrow = true) {
+        using var group = ImRaii.Group();
         var modified = false;
         bool comboOpen;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
@@ -1097,14 +1100,14 @@ public class ConfigWindow : Window {
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, 0xFFFFFFFF);
             var p = ImGui.GetCursorScreenPos();
             var dl = ImGui.GetWindowDrawList();
-            comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest);
+            comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
             dl.AddLine(p, p + new Vector2(checkboxSize), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
             ImGui.PopStyleColor(3);
         } else {
             ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(color.Value, 1));
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(color.Value, 1));
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(color.Value, 1));
-            comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest);
+            comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
             ImGui.PopStyleColor(3);
         }
         
@@ -1201,8 +1204,10 @@ public class ConfigWindow : Window {
         if (config.ShowColoredTitles) {
             ImGui.TableNextColumn();
             modified |= DrawColorPicker("##colour", ref title.Color);
+            modified |= DragDropColourTarget(ref title.Color);
             ImGui.TableNextColumn();
             modified |= DrawColorPicker("##glow", ref title.Glow); 
+            modified |= DragDropColourTarget(ref title.Glow);
         }
 
         if (modified) {
@@ -1211,6 +1216,40 @@ public class ConfigWindow : Window {
         }
         
         ImGui.TableNextColumn();
+    }
+
+    public bool DragDropColourTarget(ref Vector3? color) {
+        if (!ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenOverlapped | ImGuiHoveredFlags.AllowWhenBlockedByPopup | ImGuiHoveredFlags.AllowWhenBlockedByActiveItem)) return false;
+        if (ImGui.IsMouseDown(ImGuiMouseButton.Left) && dragging == false) {
+            dragColour = color;
+            dragging = true;
+            return false;
+        }
+
+        if (!dragging) return false;
+        if (!ImGui.IsMouseReleased(ImGuiMouseButton.Left)) return false;
+        color = dragColour;
+        dragging = false;
+        return true;
+    }
+
+    public override void PostDraw() {
+        if (!ImGui.GetIO().MouseDown[0] && dragging) {
+            dragColour = null;
+            dragging = false;
+        }
+        
+        if (dragging) {
+            var dl = ImGui.GetForegroundDrawList();
+            var p = ImGui.GetMousePos();
+            var pad = new Vector2(2) * ImGuiHelpers.GlobalScale;
+            var s = new Vector2(32) * ImGuiHelpers.GlobalScale + pad * 2;
+            dl.AddRectFilled(p, p + s, 0xFF000000);
+            dl.AddRectFilled(p + pad, p + s - pad, ImGui.ColorConvertFloat4ToU32(new Vector4(dragColour ?? Vector3.One, 1)));
+            if (dragColour == null) dl.AddLine(p, p + s, 0xFF0000FF, 3 * ImGuiHelpers.GlobalScale);
+        }
+        
+        base.PostDraw();
     }
 
     public override void OnClose() {
