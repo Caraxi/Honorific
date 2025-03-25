@@ -19,6 +19,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.Interop;
@@ -428,6 +429,15 @@ public class ConfigWindow : Window {
                                 if (color) ImGui.PopStyleColor();
                                 ImGui.TableNextColumn();
                                 Util.ShowStruct(npi);
+                                var obj = GameObjectManager.Instance()->Objects.GetObjectByGameObjectId(npi->ObjectId);
+                                if (obj == null) {
+                                    ImGui.Text("No Object");
+                                } else {
+                                    ImGui.Text(obj->NameString);
+                                    ImGui.SameLine();
+                                    Util.ShowStruct(obj);
+                                }
+
                                 ImGui.PopID();
                             }
                         }

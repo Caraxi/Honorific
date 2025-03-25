@@ -36,7 +36,7 @@ public unsafe class Plugin : IDalamudPlugin {
     
     public PluginConfig Config { get; }
     
-    [Signature("40 56 57 41 56 41 57 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
+    [Signature("40 53 56 41 56 41 57 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
     private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
     
     [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 74 24 ??", DetourName = nameof(UpdateNameplateNpcDetour))]
@@ -180,42 +180,65 @@ public unsafe class Plugin : IDalamudPlugin {
                     }
                     
                     var titleText = splitArgs[2];
-
-                    var title = characterConfig.GetTitleByUniqueId(titleText);
-                    if (title == null) title = characterConfig.CustomTitles.FirstOrDefault(t => t.Title?.Equals(titleText, StringComparison.InvariantCultureIgnoreCase) == true);
-                    if (title == null && characterConfig.DefaultTitle.Title?.Equals(titleText, StringComparison.InvariantCultureIgnoreCase) == true) {
-                        title = characterConfig.DefaultTitle;
-                    }
-
-                    if (title == null) {
+                    var titles = characterConfig.GetTitlesBySearchString(titleText);
+                    if (titles.Count == 0) {
                         PluginService.Chat.PrintError($"'{titleText}' is not setup on this character.", Name);
                         return;
                     }
                     
-                    switch (splitArgs[1].ToLower().Trim('<', '>', '[', ']')) {
-                        case "toggle" or "t" when !title.Enabled:
-                        case "enable" or "e" or "on": {
-                            if (!title.Enabled) {
-                                title.Enabled = true;
-                                PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been enabled.").Build(), Name);
+                    PluginService.Chat.Print($"{splitArgs[1].ToLower()} {titles.Count} titles.");
+                    List<CustomTitle> disabled = [];
+                    List<CustomTitle> enabled = [];
+                    foreach (var title in titles) {
+                        switch (splitArgs[1].ToLower().Trim('<', '>', '[', ']')) {
+                            case "toggle" or "t" when !title.Enabled:
+                            case "enable" or "e" or "on": {
+                                if (!title.Enabled) {
+                                    title.Enabled = true;
+                                    enabled.Add(title);
+                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been enabled.").Build(), Name);
+                                }
+
+                                break;
                             }
-                            
-                            return;
-                        }
-                        case "toggle" or "t" when title.Enabled:
-                        case "disable" or "d" or "off": {
-                            if (title.Enabled) {
-                                title.Enabled = false;
-                                PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been disabled.").Build(), Name);
+                            case "toggle" or "t" when title.Enabled:
+                            case "disable" or "d" or "off": {
+                                if (title.Enabled) {
+                                    title.Enabled = false;
+                                    disabled.Add(title);
+                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been disabled.").Build(), Name);
+                                }
+                                break;
                             }
-                            return;
-                        }
-                        default: {
-                            PluginService.Chat.PrintError($"'{splitArgs[1]}' is not a valid action.", Name);
-                            HelpToggle();
-                            return;
+                            default: {
+                                PluginService.Chat.PrintError($"'{splitArgs[1]}' is not a valid action.", Name);
+                                HelpToggle();
+                                break;
+                            }
                         }
                     }
+
+                    if (titles.Count > 1 && enabled.Count > 0) {
+                        var message = new SeStringBuilder();
+                        message.AddText("Enabled Titles: ");
+                        foreach (var t in enabled) {
+                            message.Append(t.ToSeString());
+                        }
+
+                        PluginService.Chat.Print(message.Build(), Name);
+                    }
+                    
+                    if (titles.Count > 1 && disabled.Count > 0) {
+                        var message = new SeStringBuilder();
+                        message.AddText("Disabled Titles: ");
+                        foreach (var t in disabled) {
+                            message.Append(t.ToSeString());
+                        }
+
+                        PluginService.Chat.Print(message.Build(), Name);
+                    }
+                    
+                    return;
                 }
                 case "random": {
                     var character = PluginService.ClientState.LocalPlayer;
@@ -464,9 +487,8 @@ public unsafe class Plugin : IDalamudPlugin {
             titleChanged = true;
         }
 
-        var isPrefix = (namePlateInfo->Flags & 0x1000000) == 0x1000000;
-        namePlateInfo->Flags &= ~0x1000000;
-        if (title.IsPrefix) namePlateInfo->Flags |= 0x1000000;
+        var isPrefix = namePlateInfo->IsPrefixTitle;
+        namePlateInfo->IsPrefix = title.IsPrefix;
         if (isPrefix != title.IsPrefix) titleChanged = true;
 
         if (titleChanged) {
