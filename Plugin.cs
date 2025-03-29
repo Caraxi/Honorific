@@ -12,6 +12,7 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.NamePlate;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
@@ -92,13 +93,22 @@ public unsafe class Plugin : IDalamudPlugin {
         IpcProvider.NotifyReady();
         PluginService.Framework.RunOnTick(DoIpcCleanup, delay: TimeSpan.FromSeconds(5), cancellationToken: pluginLifespan.Token);
         PluginService.ClientState.TerritoryChanged += OnTerritoryChanged;
-
+        PluginService.NamePlateGui.OnPostNamePlateUpdate += UpdateDisplayedPlateList;
         #if DEBUG
         IsDebug = true;
         #endif
     }
+    
+    public static Dictionary<ulong, (SeString Title, bool Visible, Stopwatch Updated)> DisplayedTitles { get; } = new();
+    private void UpdateDisplayedPlateList(INamePlateUpdateContext context, IReadOnlyList<INamePlateUpdateHandler> handlers) {
+        using var _ = PerformanceMonitors.Run(nameof(UpdateDisplayedPlateList));
+        foreach (var namePlateUpdateHandler in handlers) {
+            DisplayedTitles[namePlateUpdateHandler.GameObjectId] = (namePlateUpdateHandler.Title, namePlateUpdateHandler.DisplayTitle, Stopwatch.StartNew());
+        }
+    }
 
     private void OnTerritoryChanged(ushort _) {
+        DisplayedTitles.Clear();
         foreach (var (_, characters) in Config.WorldCharacterDictionary) {
             foreach (var (_, character) in characters) {
                 if (character is { UseRandom: true, RandomOnZoneChange: true }) {

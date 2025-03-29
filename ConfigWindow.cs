@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -52,6 +53,7 @@ public class ConfigWindow : Window {
     private string locationSearch = string.Empty;
     private Vector3? dragColour;
     private bool dragging;
+    private readonly Stopwatch delayError = Stopwatch.StartNew();
 
     public void DrawCharacterList() {
 
@@ -214,16 +216,16 @@ public class ConfigWindow : Window {
                 if (Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
                     
                     if (activePlayer is IPlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
-                        ImGui.TextDisabled($"ObjectID: {activePlayer:X8}");
+                        ImGui.TextDisabled($"Active Object: {activePlayer}");
                         unsafe {
                             var raptureAtkModule = Framework.Instance()->GetUIModule()->GetRaptureAtkModule();
-
-                            
+                            var titleVisible = false;
                             for (var i = 0; i < 50 && i < raptureAtkModule->NameplateInfoCount; i++) {
                                 var npi = raptureAtkModule->NamePlateInfoEntries.GetPointer(i);
                                 if (npi->ObjectId.ObjectId == pc.EntityId) {
+                                    titleVisible = true;
                                     ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectId.ObjectId:X8}");
-                                    Util.ShowStruct(*npi, (ulong) npi, true, new string[] { $"{(ulong)npi:X}"});
+                                    Util.ShowStruct(*npi, (ulong) npi, true, [$"{(ulong)npi:X}"]);
 
                                     var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles);
 
@@ -232,15 +234,39 @@ public class ConfigWindow : Window {
                                     ImGui.Indent();
                                     foreach(var p in currentTitle.Payloads) ImGui.Text($"{p}");
                                     ImGui.Unindent();
+                                    var titleDisplayed = Plugin.DisplayedTitles.TryGetValue(activePlayer.GameObjectId, out var dalamudDisplayedTitle);
+                                    if (titleDisplayed) {
+                                        ImGui.Text("Displayed Title:");
+                                        ImGui.SameLine();
+                                        ImGui.TextDisabled("According to Dalamud");
+                                        ImGui.Indent();
+                                        if (dalamudDisplayedTitle.Visible) {
+                                            foreach(var p in dalamudDisplayedTitle.Title.Payloads) ImGui.Text($"{p}");
+                                        } else {
+                                            ImGui.Text("Title is Hidden");
+                                        }
+                                        
+                                        ImGui.Unindent();
+                                    }
+                                    
                                     ImGui.Text($"Expected Title:");
                                     ImGui.Indent();
                                     foreach(var p in expectedTitleSeString.Payloads) ImGui.Text($"{p}");
                                     ImGui.Unindent();
-                                    
                                     ImGui.Text($"Titles Match?: {currentTitle.IsSameAs(expectedTitleSeString, out _)}");
-                                    
+                                    if (titleDisplayed) {
+                                        ImGui.SameLine();
+                                        ImGui.Text("/");
+                                        ImGui.SameLine();
+                                        ImGui.Text($"{dalamudDisplayedTitle.Title.IsSameAs(expectedTitleSeString, out _)}");
+                                    }
                                 }
                             }
+
+                            if (!titleVisible) {
+                                ImGui.Text("Title not currently visible.");
+                            }
+                            
                         }
                     } else {
                         ImGui.TextDisabled("Character is not currently in world.");
@@ -249,11 +275,7 @@ public class ConfigWindow : Window {
                     ImGui.TreePop();
                 }
                 
-                
-                
-
                 if (activePlayer != null && Plugin.IpcAssignedTitles.TryGetValue(activePlayer.EntityId, out var title)) {
-
                     ImGui.Text("This character's title is currently assigned by another plugin.");
                     if (Plugin.IsDebug && ImGui.Button("Clear IPC Assignment")) {
                         Plugin.IpcAssignedTitles.Remove(activePlayer.EntityId);
@@ -1094,6 +1116,59 @@ public class ConfigWindow : Window {
         if (characterConfig.UseRandom) {
             using (ImRaii.PushIndent()) {
                 ImGui.Checkbox("Select a new random title on zone change", ref characterConfig.RandomOnZoneChange);
+            }
+        }
+        
+        if (activeCharacter != null && Plugin.DisplayedTitles.TryGetValue(activeCharacter.GameObjectId, out var displayedTitle)) {
+            ImGui.Separator();
+            ImGui.Text("Current Title: ");
+            ImGui.SameLine();
+            if (displayedTitle.Visible && activeCharacter is IPlayerCharacter pc) {
+                ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue});
+                if (plugin.TryGetTitle(pc, out var activeTitle) && activeTitle != null) {
+                    var expectedTitle = activeTitle.ToSeString(true, config.ShowColoredTitles);
+                    if (!displayedTitle.Title.IsSameAs(expectedTitle, out _)) {
+                        if (delayError.ElapsedMilliseconds > 1000) {
+                            ImGui.Text("Expected Title:");
+                            ImGui.SameLine();
+                            ImGuiHelpers.SeStringWrapped(expectedTitle.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue});
+                        
+                        
+                            ImGui.TextColored(ImGuiColors.DalamudRed, "Honorific appears to be failing to set this characters title.");
+                            ImGui.Text("If this is unexpected, please check the following:");
+                            using (ImRaii.PushIndent()) {
+                                if (PluginService.PluginInterface.InstalledPlugins.Any(p => p is { IsLoaded: true, InternalName: "PlayerTags" })) {
+                                    ImGui.Text(" - PlayerTags configuration may be set to override titles.");
+                                    ImGui.SameLine();
+                                    ImGuiComponents.HelpMarker("PlayerTags is another plugin known to cause issues with certain configurations and has been detected as installed.\n\nIt is possible to configure PlayerTags in a way that does not conflict with Honorific.");
+                                }
+                                
+                                ImGui.Text(" - Another plugin may be setting the title causing a conflict.");
+                                
+                            }
+                        }
+                    } else {
+                        delayError.Restart();
+                    }
+                } else {
+                    delayError.Restart();
+                }
+                
+            } else {
+                if (delayError.ElapsedMilliseconds > 1000) {
+                    ImGui.TextColored(ImGuiColors.DalamudYellow, "Title is currently not visible.");
+                    ImGui.Text("If this is unexpected, please check the following:");
+                    using (ImRaii.PushIndent()) {
+                        if (PluginService.PluginInterface.InstalledPlugins.Any(p => p is { IsLoaded: true, InternalName: "PlayerTags" })) {
+                            ImGui.Text(" - PlayerTags configuration may be set to hide titles.");
+                            ImGui.SameLine();
+                            ImGuiComponents.HelpMarker("PlayerTags is another plugin you have installed.\nAdjust the 'Title Visibility' options.");
+                        }
+                        
+                        ImGui.Text(" - Another plugin may be hiding the title.");
+                        ImGui.Text(" - Ensure game options are set to allow this character's title to be displayed.");
+                    }
+                }
             }
         }
     }
