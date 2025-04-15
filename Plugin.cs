@@ -474,6 +474,11 @@ public unsafe class Plugin : IDalamudPlugin {
                                     }
                                 }
                             }
+
+                            if (PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(serverId) == null) {
+                                PluginService.Chat.PrintError($"World not found: 'World#{serverId}'", Name);
+                                return;
+                            }
                             
                             Config.IdentifyAs[PluginService.ClientState.LocalContentId] = (name, serverId);
                             PluginService.PluginInterface.SavePluginConfig(Config);
