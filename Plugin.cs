@@ -25,6 +25,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
+using Lumina.Extensions;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using ObjectKind = FFXIVClientStructs.FFXIV.Client.Game.Object.ObjectKind;
 using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
@@ -168,7 +169,14 @@ public unsafe class Plugin : IDalamudPlugin {
         void HelpToggle() {
             PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific title ").AddUiForeground("<enable|disable|toggle>", 52).AddText(" ").AddUiForeground("<title>", 35).Build(), Name);
         }
-        
+
+        void HelpIdentitySet() {
+            PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific identity set ").AddUiForeground("<name>", 35).AddText(" | ").AddUiForeground("[server]", 52).Build(), Name);
+        }
+        void HelpIdentity() {
+            HelpIdentitySet();
+            PluginService.Chat.Print(new SeStringBuilder().AddText("/honorific identity reset").Build(), Name);
+        }
         
         if (splitArgs.Length > 0) {
             switch (splitArgs[0]) {
@@ -178,8 +186,14 @@ public unsafe class Plugin : IDalamudPlugin {
                         PluginService.Chat.PrintError($"Unable to use command. Character not found.", Name);
                         return;
                     }
-                    
-                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
+
+                    var characterName = character.Name.TextValue;
+                    var homeWorld = character.HomeWorld.RowId;
+                    if (Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                        (characterName, homeWorld) = identifyAs;
+                    }
+
+                    if (!Config.TryGetCharacterConfig(characterName, homeWorld, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
                         return;
                     }
@@ -257,7 +271,13 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetCharacterConfig(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
+                    var characterName = character.Name.TextValue;
+                    var homeWorld = character.HomeWorld.RowId;
+                    if (Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                        (characterName, homeWorld) = identifyAs;
+                    }
+                    
+                    if (!Config.TryGetCharacterConfig(characterName, homeWorld, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
                         return;
                     }
@@ -277,7 +297,13 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
+                    var characterName = character.Name.TextValue;
+                    var homeWorld = character.HomeWorld.RowId;
+                    if (Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                        (characterName, homeWorld) = identifyAs;
+                    }
+
+                    if (!Config.TryGetOrAddCharacter(characterName, homeWorld, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
                         return;
                     }
@@ -294,7 +320,13 @@ public unsafe class Plugin : IDalamudPlugin {
                         return;
                     }
                     
-                    if (!Config.TryGetOrAddCharacter(character.Name.TextValue, character.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
+                    var characterName = character.Name.TextValue;
+                    var homeWorld = character.HomeWorld.RowId;
+                    if (Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                        (characterName, homeWorld) = identifyAs;
+                    }
+
+                    if (!Config.TryGetOrAddCharacter(characterName, homeWorld, out var characterConfig) || characterConfig == null) {
                         PluginService.Chat.PrintError($"Unable to use set command. Config failure.", Name);
                         return;
                     }
@@ -404,6 +436,53 @@ public unsafe class Plugin : IDalamudPlugin {
                     
                     return;
                 }
+                case "identity":
+                    if (PluginService.ClientState.LocalContentId == 0 || PluginService.ClientState.LocalPlayer == null) return;
+                    if (splitArgs.Length < 2) {
+                        HelpIdentity();
+                        return;
+                    }
+
+                    switch (splitArgs[1]) {
+                        case "reset":
+                            Config.IdentifyAs.Remove(PluginService.ClientState.LocalContentId);
+                            PluginService.PluginInterface.SavePluginConfig(Config);
+                            return;
+                        case "set":
+
+                            if (splitArgs.Length < 3) {
+                                HelpIdentitySet();
+                                return;
+                            }
+
+                            var nameServerSplit = splitArgs[2].Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                            var name = nameServerSplit[0];
+                            var serverName = nameServerSplit.Length > 1 ? nameServerSplit[1] : string.Empty;
+                            var serverId = 0U;
+                            if (string.IsNullOrWhiteSpace(serverName)) {
+                                serverId = PluginService.ClientState.LocalPlayer.HomeWorld.RowId;
+                            } else {
+                                if (!uint.TryParse(serverName, out serverId)) {
+
+                                    var worldRow = PluginService.Data.GetExcelSheet<World>().FirstOrNull(w => w.Name.ExtractText().Equals(serverName, StringComparison.InvariantCultureIgnoreCase));
+                                    if (worldRow is { } world) {
+                                        serverId = world.RowId;
+                                    } else {
+                                        PluginService.Chat.PrintError($"World not found: '{serverName}'", Name);
+                                        return;
+                                    }
+                                }
+                            }
+                            
+                            Config.IdentifyAs[PluginService.ClientState.LocalContentId] = (name, serverId);
+                            PluginService.PluginInterface.SavePluginConfig(Config);
+                            
+                            return;
+                        default:
+                            HelpIdentity();
+                            return;
+                    }
                 case "help":
                     goto ShowHelp;
                 default: 
@@ -412,6 +491,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     HelpToggle();
                     HelpForceSet();
                     HelpForceClear();
+                    HelpIdentity();
                     return;
             }
         }
@@ -554,7 +634,16 @@ public unsafe class Plugin : IDalamudPlugin {
             return true;
         }
         if (IpcAssignedTitles.TryGetValue(playerCharacter.EntityId, out title) && title.IsValid()) return true;
-        if (!Config.TryGetCharacterConfig(playerCharacter.Name.TextValue, playerCharacter.HomeWorld.RowId, out var characterConfig) || characterConfig == null) {
+
+
+        var playerName = playerCharacter.Name.TextValue;
+        var homeWorld = playerCharacter.HomeWorld.RowId;
+
+        if (playerCharacter.ObjectIndex == 0 && Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+            (playerName, homeWorld) = identifyAs;
+        }
+        
+        if (!Config.TryGetCharacterConfig(playerName, homeWorld, out var characterConfig) || characterConfig == null) {
             if (!allowOriginal) return false;
             title = GetOriginalTitle(playerCharacter);
             return true;

@@ -11,7 +11,7 @@ namespace Honorific;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class IpcProvider {
     public const uint MajorVersion = 3;
-    public const uint MinorVersion = 1;
+    public const uint MinorVersion = 2;
 
     public const string NameSpace = "Honorific";
     
@@ -25,6 +25,7 @@ public static class IpcProvider {
     private static ICallGateProvider<string, uint, TitleData[]>? GetCharacterTitleList;
     private static ICallGateProvider<object>? Ready;
     private static ICallGateProvider<object>? Disposing;
+    private static ICallGateProvider<string?, uint, object>? SetLocalPlayerIdentity;
 
     internal static void Init(Plugin plugin) { 
         ApiVersion = PluginService.PluginInterface.GetIpcProvider<(uint, uint)>($"{NameSpace}.{nameof(ApiVersion)}");
@@ -77,6 +78,16 @@ public static class IpcProvider {
         LocalCharacterTitleChanged = PluginService.PluginInterface.GetIpcProvider<string, object>($"{NameSpace}.{nameof(LocalCharacterTitleChanged)}");
         Ready = PluginService.PluginInterface.GetIpcProvider<object>($"{NameSpace}.{nameof(Ready)}");
         Disposing = PluginService.PluginInterface.GetIpcProvider<object>($"{NameSpace}.{nameof(Disposing)}");
+        
+        SetLocalPlayerIdentity = PluginService.PluginInterface.GetIpcProvider<string?, uint, object>($"{NameSpace}.{nameof(SetLocalPlayerIdentity)}");
+        SetLocalPlayerIdentity.RegisterAction((name, world) => {
+            if (PluginService.ClientState.LocalContentId == 0) return;
+            if (string.IsNullOrWhiteSpace(name)) {
+                plugin.Config.IdentifyAs.Remove(PluginService.ClientState.LocalContentId);
+            } else {
+                plugin.Config.IdentifyAs[PluginService.ClientState.LocalContentId] = (name, world);
+            }
+        });
     }
 
     internal static void ChangedLocalCharacterTitle(TitleData? title) {
@@ -101,6 +112,7 @@ public static class IpcProvider {
         GetCharacterTitle?.UnregisterFunc();
         GetLocalCharacterTitle?.UnregisterFunc();
         GetCharacterTitleList?.UnregisterFunc();
+        SetLocalPlayerIdentity?.UnregisterFunc();
         LocalCharacterTitleChanged = null;
         Ready = null;
         Disposing = null;

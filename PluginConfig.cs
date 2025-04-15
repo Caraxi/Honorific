@@ -19,6 +19,8 @@ public class PluginConfig : IPluginConfiguration {
     public bool HideVanillaAlliance;
     public bool HideVanillaFriends;
     public bool HideVanillaOther;
+
+    public Dictionary<ulong, (string, uint)> IdentifyAs = new();
     
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {
         characterConfig = null;

@@ -33,6 +33,7 @@ namespace Honorific;
 public class ConfigWindow : Window {
     private readonly PluginConfig config;
     private readonly Plugin plugin;
+    private Stopwatch configModifiedStopwatch = new();
 
     public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse) {
         this.config = config;
@@ -55,7 +56,7 @@ public class ConfigWindow : Window {
     private bool dragging;
     private readonly Stopwatch delayError = Stopwatch.StartNew();
 
-    public void DrawCharacterList() {
+    public void DrawCharacterList(string highlightName, uint highlightWorld) {
 
         foreach (var (worldId, characters) in config.WorldCharacterDictionary.ToArray()) {
             var world = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(worldId);
@@ -65,10 +66,13 @@ public class ConfigWindow : Window {
             ImGui.Separator();
 
             foreach (var (name, characterConfig) in characters.ToArray()) {
-                if (ImGui.Selectable($"{name}##{world.Value.Name.ExtractText()}", selectedCharacter == characterConfig)) {
-                    selectedCharacter = characterConfig;
-                    selectedName = name;
-                    selectedWorld = world.Value.RowId;
+
+                using (ImRaii.PushColor(ImGuiCol.Text, 0xFFAA55FF, highlightName.Equals(name, StringComparison.InvariantCultureIgnoreCase) && highlightWorld == worldId)) {
+                    if (ImGui.Selectable($"{name}##{world.Value.Name.ExtractText()}", selectedCharacter == characterConfig)) {
+                        selectedCharacter = characterConfig;
+                        selectedName = name;
+                        selectedWorld = world.Value.RowId;
+                    }
                 }
                 
                 if (ImGui.BeginPopupContextItem()) {
@@ -79,6 +83,11 @@ public class ConfigWindow : Window {
                             config.WorldCharacterDictionary.Remove(worldId);
                         }
                     }
+
+                    if (PluginService.ClientState.LocalContentId != 0 && ImGui.Selectable($"Identify as '{name} @ {world.Value.Name.ExtractText()}'")) {
+                        config.IdentifyAs[PluginService.ClientState.LocalContentId] = (name, world.Value.RowId);
+                    }
+                    
                     ImGui.EndPopup();
                 }
             }
@@ -125,7 +134,25 @@ public class ConfigWindow : Window {
         ImGui.BeginGroup();
         {
             if (ImGui.BeginChild("character_select", ImGuiHelpers.ScaledVector2(240, 0) - iconButtonSize with { X = 0 }, true)) {
-                DrawCharacterList();
+
+                var name = PluginService.ClientState.LocalPlayer?.Name.TextValue ?? string.Empty;
+                var homeWorld = PluginService.ClientState.LocalPlayer?.HomeWorld.RowId ?? 0;
+                
+                if (config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                    var worldName = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(identifyAs.Item2)?.Name.ExtractText() ?? $"UnknownWorld#{identifyAs.Item2}";
+                    ImGui.Text("Current Identity:");
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Reset")) {
+                        config.IdentifyAs.Remove(PluginService.ClientState.LocalContentId);
+                    } else {
+                        (name, homeWorld) = identifyAs;
+                        ImGui.Text($"\t{name}\n\t\t@ {worldName}");
+                        
+                    }
+                    ImGui.Separator();
+                }
+                
+                DrawCharacterList(name, homeWorld);
             }
             ImGui.EndChild();
 
@@ -134,7 +161,14 @@ public class ConfigWindow : Window {
             if (PluginService.ClientState.LocalPlayer != null) {
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.User)) {
                     if (PluginService.ClientState.LocalPlayer != null) {
-                        config.TryAddCharacter(PluginService.ClientState.LocalPlayer.Name.TextValue, PluginService.ClientState.LocalPlayer.HomeWorld.RowId);
+                        var characterName = PluginService.ClientState.LocalPlayer.Name.TextValue;
+                        var homeWorld = PluginService.ClientState.LocalPlayer.HomeWorld.RowId;
+                        
+                        if (config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs)) {
+                            (characterName, homeWorld) = identifyAs;
+                        }
+                        
+                        config.TryAddCharacter(characterName, homeWorld);
                     }
                 }
                 
@@ -177,7 +211,7 @@ public class ConfigWindow : Window {
         ImGui.SameLine();
         if (ImGui.BeginChild("character_view", ImGuiHelpers.ScaledVector2(0), true)) {
             if (selectedCharacter != null) {
-                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is IPlayerCharacter playerCharacter && playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.RowId == selectedWorld);
+                var activePlayer = PluginService.Objects.FirstOrDefault(t => t is IPlayerCharacter playerCharacter && ((playerCharacter.ObjectIndex == 0 && config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identity)) ? (identity.Item1 == selectedName && identity.Item2 == selectedWorld) : (playerCharacter.Name.TextValue == selectedName && playerCharacter.HomeWorld.RowId == selectedWorld)));
 
                 if (activePlayer is IPlayerCharacter player) {
                     var option = UiConfigOption.NamePlateNameTitleTypeOther;
@@ -579,6 +613,16 @@ public class ConfigWindow : Window {
             
         }
         ImGui.EndChild();
+
+        if (modified) {
+            configModifiedStopwatch.Restart();
+        }
+
+        if (configModifiedStopwatch.ElapsedMilliseconds > 1000) {
+            PluginService.Log.Information("Saving Plugin Config");
+            configModifiedStopwatch.Reset();
+            PluginService.PluginInterface.SavePluginConfig(config);
+        }
     }
 
     private void DrawCharacterView(CharacterConfig? characterConfig, IGameObject? activeCharacter, ref bool modified) {
@@ -1338,6 +1382,7 @@ public class ConfigWindow : Window {
     }
 
     public override void OnClose() {
+        configModifiedStopwatch.Reset();
         PluginService.PluginInterface.SavePluginConfig(config);
         base.OnClose();
     }
