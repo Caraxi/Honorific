@@ -20,13 +20,15 @@ public class TitleData {
     public bool IsOriginal;
     public Vector3? Color;
     public Vector3? Glow;
+    public Palette? TitlePalette;
 
     public static implicit operator TitleData(CustomTitle title) => new() {
         Title = title.Title,
         IsPrefix = title.IsPrefix,
         Color = title.Color,
         Glow = title.Glow,
-        IsOriginal = title.IsOriginal
+        IsOriginal = title.IsOriginal,
+        TitlePalette = title.TitlePalette
     };
     public static implicit operator CustomTitle(TitleData data) => new() {
         Title = data.Title,
@@ -34,6 +36,7 @@ public class TitleData {
         Color = data.Color,
         Glow = data.Glow,
         IsOriginal = data.IsOriginal,
+        TitlePalette = data.TitlePalette
     };
 }
 
@@ -42,7 +45,8 @@ public partial class CustomTitle {
     public bool IsPrefix;
     public bool IsOriginal;
     public string UniqueId = string.Empty;
-    
+    public Palette? TitlePalette;
+
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
     public int ConditionParam0;
@@ -67,16 +71,21 @@ public partial class CustomTitle {
 
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
-        var builder = new SeStringBuilder();
-        if (includeQuotes) builder.AddText("《");
+        if (TitlePalette != null) {
+            return Palette.PaintSeString(Title,TitlePalette);
+        } else {
+            var builder = new SeStringBuilder();
+            if (includeQuotes) builder.AddText("《");
 
-        if (includeColor && Color != null) builder.Add(new ColorPayload(Color.Value));
-        if (includeColor && Glow != null) builder.Add(new GlowPayload(Glow.Value));
-        builder.AddText(Title);
-        if (includeColor && Glow != null) builder.Add(new GlowEndPayload());
-        if (includeColor && Color != null) builder.Add(new ColorEndPayload());
-        if (includeQuotes) builder.AddText("》");
-        return builder.Build().Cleanup();
+            if (includeColor && Color != null) builder.Add(new ColorPayload(Color.Value));
+            if (includeColor && Glow != null) builder.Add(new GlowPayload(Glow.Value));
+            builder.AddText(Title);
+            if (includeColor && Glow != null) builder.Add(new GlowEndPayload());
+            if (includeColor && Color != null) builder.Add(new ColorEndPayload());
+            if (includeQuotes) builder.AddText("》");
+            return builder.Build().Cleanup();
+        }
+        
     }
     
     public string GetUniqueId(CharacterConfig characterConfig) {

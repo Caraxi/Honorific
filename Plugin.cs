@@ -488,6 +488,70 @@ public unsafe class Plugin : IDalamudPlugin {
                             HelpIdentity();
                             return;
                     }
+                case "palette":
+                    {
+                        var character = PluginService.ClientState.LocalPlayer;
+                        if (character == null)
+                        {
+                            PluginService.Chat.PrintError($"Unable to use command. Character not found.", Name);
+                            return;
+                        }
+
+                        var characterName = character.Name.TextValue;
+                        var homeWorld = character.HomeWorld.RowId;
+                        if (Config.IdentifyAs.TryGetValue(PluginService.ClientState.LocalContentId, out var identifyAs))
+                        {
+                            (characterName, homeWorld) = identifyAs;
+                        }
+
+                        if (!Config.TryGetCharacterConfig(characterName, homeWorld, out var characterConfig) || characterConfig == null)
+                        {
+                            PluginService.Chat.PrintError($"Unable to use command. This character has not been configured.", Name);
+                            return;
+                        }
+
+                        if (splitArgs.Length < 2 || string.IsNullOrWhiteSpace(splitArgs[1]))
+                        {
+                            PluginService.Chat.PrintError("Format : /honorific palette <palette_string>", Name);
+                            PluginService.Chat.PrintError("Example : /honorific palette Name:UniqueId:PaintCount:\nPaintType:Color1.Red,Color1.Green,Color1.Blue:\nColor2.Red,Color2.Green,Color2.Blue:Length:PaintType:(...)", Name);
+                            return;
+                        }
+
+                        var paletteString = splitArgs[1];
+                        Palette? palette = null;
+
+                        
+
+                        try
+                        {
+                            if (paletteString == "test") palette = Palette.ImportPalette(Palette.ExportPalette(Palette.TestingPalette()));
+                            else palette = Palette.ImportPalette(paletteString);
+                        }
+                        catch (Exception ex)
+                        {
+                            PluginService.Chat.PrintError($"Error during palette import: {ex.Message}", Name);
+                            return;
+                        }
+                        if (palette == null)
+                        {
+                            PluginService.Chat.PrintError("Palette format is invalid.", Name);
+                            return;
+                        }
+
+                        
+                        CustomTitle? title = characterConfig.ActiveTitle
+                            ?? characterConfig.CustomTitles.FirstOrDefault(t => t.Enabled);
+
+                        if (title == null)
+                        {
+                            PluginService.Chat.PrintError("No active title found.", Name);
+                            return;
+                        }
+
+                        title.TitlePalette = palette;
+                        PluginService.Chat.Print(new SeStringBuilder().AddText("Palette applied to title : ").Append(title.ToSeString()).Build(), Name);
+                        return;
+                    }
                 case "help":
                     goto ShowHelp;
                 default: 

@@ -1,9 +1,9 @@
 {
-  "Author": "Caraxi",
-  "Name": "Honorific",
-  "RepoUrl": "https://github.com/Caraxi/Honorific",
-  "Punchline": "Customized titles for you and yours.",
+  "Author": "Caraxi, 5ZN",
+  "Name": "HonorificPaints",
+  "RepoUrl": "https://github.com/Wadwadmadlad/HonorificPaints",
+  "Punchline": "Customized titles for you and yours : now with paints.",
   "Description": "Assign custom titles to players.",
-  "InternalName": "Honorific",
+  "InternalName": "HonorificPaints",
   "ApplicableVersion": "any"
 }
