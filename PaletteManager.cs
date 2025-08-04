@@ -15,61 +15,13 @@ namespace Honorific
         Static,
         Alternating,
         GradientRGB,
-        GradientHSV,
-        GradientLAB
+        GradientLAB,
+        RainbowCW,
+        RainbowCCW
     }
 
     public class Gradients {
-        public static Vector3 GradientHSV(Vector3 color1, Vector3 color2, float ratio)
-        {
-            // Convert RGB to HSV
-            System.Drawing.Color c1 = System.Drawing.Color.FromArgb(
-                (int)(color1.X * 255), (int)(color1.Y * 255), (int)(color1.Z * 255));
-            System.Drawing.Color c2 = System.Drawing.Color.FromArgb(
-                (int)(color2.X * 255), (int)(color2.Y * 255), (int)(color2.Z * 255));
 
-            float h1 = c1.GetHue();
-            float s1 = c1.GetSaturation();
-            float v1 = c1.GetBrightness();
-
-            float h2 = c2.GetHue();
-            float s2 = c2.GetSaturation();
-            float v2 = c2.GetBrightness();
-
-            // Interpolation
-            float h = h1 + (h2 - h1) * ratio;
-            float s = s1 + (s2 - s1) * ratio;
-            float v = v1 + (v2 - v1) * ratio;
-
-            // Convert back to RGB
-            System.Drawing.Color result = ColorFromHSV(h, s, v);
-            return new Vector3(result.R / 255f, result.G / 255f, result.B / 255f);
-        }
-
-        // Helper for HSV to RGB
-        private static System.Drawing.Color ColorFromHSV(double hue, double saturation, double value)
-        {
-            int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
-            double f = hue / 60 - Math.Floor(hue / 60);
-
-
-            value = Math.Clamp(value, 0, 1);
-            int v = Convert.ToInt32(value);
-            int p = Convert.ToInt32(value * (1 - saturation));
-            int q = Convert.ToInt32(value * (1 - f * saturation));
-            int t = Convert.ToInt32(value * (1 - (1 - f) * saturation));
-
-
-            return hi switch
-            {
-                0 => System.Drawing.Color.FromArgb(v, t, p),
-                1 => System.Drawing.Color.FromArgb(q, v, p),
-                2 => System.Drawing.Color.FromArgb(p, v, t),
-                3 => System.Drawing.Color.FromArgb(p, q, v),
-                4 => System.Drawing.Color.FromArgb(t, p, v),
-                _ => System.Drawing.Color.FromArgb(v, p, q),
-            };
-        }
 
         public static Vector3 GradientLAB(Vector3 color1, Vector3 color2, float ratio)
         {
@@ -172,6 +124,91 @@ namespace Honorific
                 color1.Z * (1 - ratio) + color2.Z * ratio
             );
         }
+
+        // Helper: RGB [0,1] to HSV
+        private static Vector3 RgbToHsv(Vector3 rgb)
+        {
+            float r = rgb.X, g = rgb.Y, b = rgb.Z;
+            float max = MathF.Max(r, MathF.Max(g, b));
+            float min = MathF.Min(r, MathF.Min(g, b));
+            float h, s, v = max;
+
+            float d = max - min;
+            s = max == 0 ? 0 : d / max;
+
+            if (d == 0)
+                h = 0;
+            else if (max == r)
+                h = 60f * (((g - b) / d) % 6f);
+            else if (max == g)
+                h = 60f * (((b - r) / d) + 2f);
+            else
+                h = 60f * (((r - g) / d) + 4f);
+
+            if (h < 0) h += 360f;
+            return new Vector3(h, s, v);
+        }
+
+        // Helper: HSV to RGB [0,1]
+        private static Vector3 HsvToRgb(Vector3 hsv)
+        {
+            float h = hsv.X, s = hsv.Y, v = hsv.Z;
+            float c = v * s;
+            float x = c * (1 - MathF.Abs((h / 60f) % 2 - 1));
+            float m = v - c;
+            float r, g, b;
+
+            if (h < 60f) { r = c; g = x; b = 0; }
+            else if (h < 120f) { r = x; g = c; b = 0; }
+            else if (h < 180f) { r = 0; g = c; b = x; }
+            else if (h < 240f) { r = 0; g = x; b = c; }
+            else if (h < 300f) { r = x; g = 0; b = c; }
+            else { r = c; g = 0; b = x; }
+
+            return new Vector3(r + m, g + m, b + m);
+        }
+
+        // Use HSV to rotate hue clockwise using ratio
+        public static Vector3 GradientRainbowCW(Vector3 color1, Vector3 color2, float ratio)
+        {
+            if (ratio <= 0) { return color1; }
+            if (ratio >= 1) { return color2; }
+
+            var hsv1 = RgbToHsv(color1);
+            var hsv2 = RgbToHsv(color2);
+
+            // Calculate shortest CW hue rotation
+            float h1 = hsv1.X;
+            float h2 = hsv2.X;
+            float delta = ((h2 - h1 + 360f) % 360f);
+
+            float h = (h1 + delta * ratio) % 360f;
+            float s = hsv1.Y * (1 - ratio) + hsv2.Y * ratio;
+            float v = hsv1.Z * (1 - ratio) + hsv2.Z * ratio;
+
+            return HsvToRgb(new Vector3(h, s, v));
+        }
+
+        // Use HSV to rotate hue counter-clockwise using ratio
+        public static Vector3 GradientRainbowCCW(Vector3 color1, Vector3 color2, float ratio)
+        {
+            if (ratio <= 0) { return color1; }
+            if (ratio >= 1) { return color2; }
+
+            var hsv1 = RgbToHsv(color1);
+            var hsv2 = RgbToHsv(color2);
+
+            // Calculate shortest CCW hue rotation
+            float h1 = hsv1.X;
+            float h2 = hsv2.X;
+            float delta = ((h1 - h2 + 360f) % 360f);
+
+            float h = (h1 - delta * ratio + 360f) % 360f;
+            float s = hsv1.Y * (1 - ratio) + hsv2.Y * ratio;
+            float v = hsv1.Z * (1 - ratio) + hsv2.Z * ratio;
+
+            return HsvToRgb(new Vector3(h, s, v));
+        }
     }
 
     public class Paint
@@ -191,16 +228,19 @@ namespace Honorific
                     Color = Color1;
                     return true;
                 case PaintType.Alternating:
-                    Color = (ratio / 2 > 0.5) ? Color1 : Color2 ?? Color1;
+                    Color = (ratio > 0.5f) ? Color1 : Color2 ?? Color1;
                     return true;
                 case PaintType.GradientRGB:
                     Color = Gradients.GradientRGB(Color1, Color2 ?? Color1, ratio);
                     return true;
-                case PaintType.GradientHSV:
-                    Color = Gradients.GradientHSV(Color1, Color2 ?? Color1, ratio);
-                    return true;
                 case PaintType.GradientLAB:
                     Color = Gradients.GradientLAB(Color1, Color2 ?? Color1, ratio);
+                    return true;
+                case PaintType.RainbowCW:
+                    Color = Gradients.GradientRainbowCW(Color1, Color2 ?? Color1, ratio);
+                    return true;
+                case PaintType.RainbowCCW:
+                    Color = Gradients.GradientRainbowCCW(Color1, Color2 ?? Color1, ratio);
                     return true;
                 default:
                     Color = Vector3.Zero;

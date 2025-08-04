@@ -20,6 +20,8 @@ public class PluginConfig : IPluginConfiguration {
     public bool HideVanillaFriends;
     public bool HideVanillaOther;
 
+    public List<Palette> Palettes = new();
+
     public Dictionary<ulong, (string, uint)> IdentifyAs = new();
     
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {

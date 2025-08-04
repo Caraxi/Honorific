@@ -524,7 +524,7 @@ public unsafe class Plugin : IDalamudPlugin {
 
                         try
                         {
-                            if (paletteString == "test") palette = Palette.ImportPalette(Palette.ExportPalette(Palette.TestingPalette()));
+                            if (paletteString == "test") palette = Palette.ImportPalette(Palette.ExportPalette(Palette.TestingPalette())); 
                             else palette = Palette.ImportPalette(paletteString);
                         }
                         catch (Exception ex)
@@ -532,7 +532,7 @@ public unsafe class Plugin : IDalamudPlugin {
                             PluginService.Chat.PrintError($"Error during palette import: {ex.Message}", Name);
                             return;
                         }
-                        if (palette == null)
+                        if (palette == null && paletteString != "clear")
                         {
                             PluginService.Chat.PrintError("Palette format is invalid.", Name);
                             return;
@@ -548,8 +548,18 @@ public unsafe class Plugin : IDalamudPlugin {
                             return;
                         }
 
-                        title.TitlePalette = palette;
-                        PluginService.Chat.Print(new SeStringBuilder().AddText("Palette applied to title : ").Append(title.ToSeString()).Build(), Name);
+                        if (paletteString == "clear") { 
+                            title.TitlePalette = null;
+                            PluginService.Chat.Print(new SeStringBuilder().AddText("Palette cleared from title : ").Append(title.ToSeString()).Build(), Name);
+                        } 
+                        else
+                        {
+                            title.TitlePalette = palette;
+                            PluginService.Chat.Print(new SeStringBuilder().AddText("Palette applied to title : ").Append(title.ToSeString()).Build(), Name);
+                        }
+
+
+
                         return;
                     }
                 case "help":
