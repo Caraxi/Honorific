@@ -10,3 +10,7 @@ Implementing a class "Palette" that functions as such
 - The format is "PaletteName:ID:Paint1Type:Color1:Color2:GlowColor1:GlowColor2:Length:Paint2Type:(...)"
 
 The PaletteManager takes in a string and a palette, and returns an SeString using the adequate ColorPayloads according to the given Palette.
+
+# Issues
+
+Glow colors are not implemented at the moment because they cause crashes, only text colors are implemented
