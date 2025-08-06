@@ -38,10 +38,10 @@ public unsafe class Plugin : IDalamudPlugin {
     
     public PluginConfig Config { get; }
     
-    [Signature("40 53 56 41 56 41 57 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
+    [Signature("40 53 55 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
     private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
     
-    [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 74 24 ??", DetourName = nameof(UpdateNameplateNpcDetour))]
+    [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 7C 24", DetourName = nameof(UpdateNameplateNpcDetour))]
     private Hook<UpdateNameplateNpcDelegate>? updateNameplateHookNpc;
 
     private delegate void* UpdateNameplateDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex);
@@ -122,7 +122,7 @@ public unsafe class Plugin : IDalamudPlugin {
     private void RefreshCharacterInspect(AddonEvent type, AddonArgs args) {
         if (!Config.ApplyToInspect) return;
 
-        var atkUnitBase = (AtkUnitBase*)args.Addon;
+        var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
         
         
         SeString? GetString(int index) {

@@ -9,12 +9,12 @@
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <DalamudLibPath>$(appdata)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
-        <Version>1.6.0.0</Version>
+        <Version>1.6.0.1</Version>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DalamudPackager" Version="12.0.0" />
+        <PackageReference Include="DalamudPackager" Version="13.0.0" />
         <Reference Include="Dalamud">
             <HintPath>$(DalamudLibPath)Dalamud.dll</HintPath>
             <Private>false</Private>
@@ -39,9 +39,13 @@
             <HintPath>$(DalamudLibPath)Newtonsoft.Json.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <Reference Include="ImGui.NET">
-            <HintPath>$(DalamudLibPath)ImGui.NET.dll</HintPath>
+        <Reference Include="Dalamud.Bindings.ImGui">
             <Private>false</Private>
+            <HintPath>$(DalamudLibPath)\Dalamud.Bindings.ImGui.dll</HintPath>
+        </Reference>
+        <Reference Include="Dalamud.Bindings.ImPlot">
+            <Private>false</Private>
+            <HintPath>$(DalamudLibPath)\Dalamud.Bindings.ImPlot.dll</HintPath>
         </Reference>
     </ItemGroup>
 </Project>
