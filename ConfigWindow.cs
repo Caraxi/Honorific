@@ -24,7 +24,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.Interop;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
 using Newtonsoft.Json;
 
@@ -66,16 +66,16 @@ public class ConfigWindow : Window {
             ImGui.Separator();
 
             foreach (var (name, characterConfig) in characters.ToArray()) {
-
+                var id = $"{name}##{world.Value.Name.ExtractText()}";
                 using (ImRaii.PushColor(ImGuiCol.Text, 0xFFAA55FF, highlightName.Equals(name, StringComparison.InvariantCultureIgnoreCase) && highlightWorld == worldId)) {
-                    if (ImGui.Selectable($"{name}##{world.Value.Name.ExtractText()}", selectedCharacter == characterConfig)) {
+                    if (ImGui.Selectable(id, selectedCharacter == characterConfig)) {
                         selectedCharacter = characterConfig;
                         selectedName = name;
                         selectedWorld = world.Value.RowId;
                     }
                 }
                 
-                if (ImGui.BeginPopupContextItem()) {
+                if (ImGui.BeginPopupContextItem(id)) {
                     if (ImGui.Selectable($"Remove '{name} @ {world.Value.Name.ExtractText()}' from Config")) {
                         characters.Remove(name);
                         if (selectedCharacter == characterConfig) selectedCharacter = null;
@@ -1581,6 +1581,7 @@ public class ConfigWindow : Window {
 
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         using (ImRaii.PushColor(ImGuiCol.Text, 0, !title.EditorActive && config.DisplayPreviewInConfigWindow)) {
+            title.Title ??= string.Empty;
             modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
             title.EditorActive = ImGui.IsItemActive();
             if (!title.EditorActive && config.DisplayPreviewInConfigWindow) {
