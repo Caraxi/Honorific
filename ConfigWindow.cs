@@ -758,12 +758,17 @@ public class ConfigWindow : Window {
                     ImGui.SameLine();
                     if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
                         deletePaint = i;
+
                     ImGui.SameLine();
-                    if (i > 0 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowUp))
-                        movePaintUp = i;
+                    using (ImRaii.Disabled(i <= 0))
+                        if (ImGuiComponents.IconButton(FontAwesomeIcon.ArrowUp) && i > 0)
+                            movePaintUp = i;
+
                     ImGui.SameLine();
-                    if (i < palette.Paints.Count - 1 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowDown))
-                        movePaintDown = i;
+                    using (ImRaii.Disabled(i >= palette.Paints.Count - 1))
+                        if (ImGuiComponents.IconButton(FontAwesomeIcon.ArrowDown) && i < palette.Paints.Count - 1)
+                            movePaintDown = i;
+
                     ImGui.SameLine();
 
                     // Type
