@@ -740,7 +740,7 @@ public class ConfigWindow : Window {
                 ImGui.Separator();
                 ImGui.Text("Palette preview :");
                 var previewText = paletteName;
-                var previewSeString = Palette.PaintSeString(previewText, palette);
+                var previewSeString = Palette.PaintSeString(previewText, palette, Vector3.One, Vector3.Zero);
                 ImGuiHelpers.SeStringWrapped(previewSeString.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue });
                 ImGui.TextDisabled($"ID : {palette.UniqueId}");
                 
@@ -996,9 +996,9 @@ public class ConfigWindow : Window {
                 ImGui.TableNextColumn(); // Palette
                 int paletteIndex = title.TitlePalette == null ? 0 : config.Palettes.FindIndex(p => p.UniqueId == title.TitlePalette.UniqueId) + 1;
                 ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 120 * ImGuiHelpers.GlobalScale);
-                if (ImGui.BeginCombo($"Palette##palette_{i}", paletteIndex == 0 ? "Aucune" : config.Palettes[paletteIndex - 1].Name))
+                if (ImGui.BeginCombo($"Palette##palette_{i}", paletteIndex == 0 ? "None" : config.Palettes[paletteIndex - 1].Name))
                 {
-                    if (ImGui.Selectable("Aucune", paletteIndex == 0))
+                    if (ImGui.Selectable("None", paletteIndex == 0))
                     {
                         title.TitlePalette = null;
                         modified = true;

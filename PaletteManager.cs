@@ -349,7 +349,10 @@ namespace Honorific
                 var palette = new Palette();
                 var lines = palette_string.Split(":");
                 palette.Name = lines[0];
-                palette.UniqueId = lines[1];
+
+                // make a new ID because we legit do not care about the ID (for now (future use maybe?))
+                palette.UniqueId = Guid.NewGuid().ToString();
+
                 int paintCount = int.Parse(lines[2]);
                 int offset = 3;
                 for (int i = 0; i < paintCount; i++)
@@ -364,7 +367,9 @@ namespace Honorific
                     if (uint.TryParse(lines[offset + i * 4 + 3], out var length))
                         paint.Length = length;
 
-                    PluginService.Chat.Print($"Importing paint: {paint.Type}, Color1: {paint.Color1}, Color2: {paint.Color2}, Length: {paint.Length}");
+
+                    PluginService.Log.Info($"Importing paint: {paint.Type}, Color1: {paint.Color1}, Color2: {paint.Color2}, Length: {paint.Length}");
+
                     palette.Paints.Add(paint);
                 }
 
@@ -376,7 +381,7 @@ namespace Honorific
             }
         }
 
-        public static SeString PaintSeString(string title, Palette palette, bool includeQuotes = true)
+        public static SeString PaintSeString(string title, Palette palette, Vector3? title_color, Vector3? title_glow, bool includeQuotes = true)
         {
             var builder = new SeStringBuilder();
             int start_char = 0;
@@ -419,6 +424,14 @@ namespace Honorific
                     builder.Add(new ColorEndPayload());
 
                 start_char = end_char;
+            }
+
+            if (start_char < characters.Length)
+            {
+                if (title_color.HasValue) builder.Add(new ColorPayload(title_color.Value));
+                int remaining = characters.Length - start_char;
+                builder.AddText(new string(characters, start_char, remaining));
+                if (title_color.HasValue) builder.Add(new ColorEndPayload());
             }
 
             if (includeQuotes) builder.AddText("》");

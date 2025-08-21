@@ -69,11 +69,15 @@ public partial class CustomTitle {
         return true;
     }
 
-    public SeString ToSeString(bool includeQuotes = true, bool includeColor = true) {
+    public SeString ToSeString(bool includeQuotes = true, bool includeColor = true)
+    {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
-        if (TitlePalette != null && includeColor) {
-            return Palette.PaintSeString(Title,TitlePalette);
-        } else {
+        if (TitlePalette != null && includeColor)
+        {
+            return Palette.PaintSeString(Title, TitlePalette, Color, Glow, includeQuotes);
+        }
+        else
+        {
             var builder = new SeStringBuilder();
             if (includeQuotes) builder.AddText("《");
 
@@ -85,8 +89,8 @@ public partial class CustomTitle {
             if (includeQuotes) builder.AddText("》");
             return builder.Build().Cleanup();
         }
-        
     }
+
     
     public string GetUniqueId(CharacterConfig characterConfig) {
         if (string.IsNullOrEmpty(UniqueId) || UniqueId.Length < 6 || characterConfig.CustomTitles.Count(t => t.UniqueId == UniqueId) > 1) {
