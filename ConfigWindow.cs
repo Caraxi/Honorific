@@ -754,6 +754,18 @@ public class ConfigWindow : Window {
 
                     ImGui.BeginGroup();
 
+                    // Gestion buttons
+                    ImGui.SameLine();
+                    if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
+                        deletePaint = i;
+                    ImGui.SameLine();
+                    if (i > 0 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowUp))
+                        movePaintUp = i;
+                    ImGui.SameLine();
+                    if (i < palette.Paints.Count - 1 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowDown))
+                        movePaintDown = i;
+                    ImGui.SameLine();
+
                     // Type
                     ImGui.SetNextItemWidth(120 * ImGuiHelpers.GlobalScale);
                     if (ImGui.BeginCombo("Type", paint.Type.ToString()))
@@ -801,22 +813,12 @@ public class ConfigWindow : Window {
                     ImGui.SameLine();
                     ImGui.SetNextItemWidth(80 * ImGuiHelpers.GlobalScale);
                     int length = (int)paint.Length;
-                    if (ImGui.InputInt("Length", ref length))
+                    if (ImGui.InputInt("Paint length", ref length))
                     {
                         paint.Length = (uint)Math.Max(0, length);
                         modified = true;
                     }
 
-                    // Gestion buttons
-                    ImGui.SameLine();
-                    if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
-                        deletePaint = i;
-                    ImGui.SameLine();
-                    if (i > 0 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowUp))
-                        movePaintUp = i;
-                    ImGui.SameLine();
-                    if (i < palette.Paints.Count - 1 && ImGuiComponents.IconButton(FontAwesomeIcon.ArrowDown))
-                        movePaintDown = i;
 
                     ImGui.EndGroup();
                     ImGui.PopID();
