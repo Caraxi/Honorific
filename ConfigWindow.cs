@@ -128,8 +128,25 @@ public class ConfigWindow : Window {
     private float kofiButtonOffset;
 
     private CustomTitle forcedTitleCommandGeneratorTitle = new();
-    
-    public override void Draw() {
+
+    public override void Draw()
+    {
+        if (ImGui.BeginTabBar("HonorificConfigTabs", ImGuiTabBarFlags.NoTooltip))
+        {
+            if (ImGui.BeginTabItem("Titles"))
+            {
+                DrawTitlesTab();
+                ImGui.EndTabItem();
+            }
+            if (ImGui.BeginTabItem("Palettes"))
+            {
+                DrawPalettesTab();
+                ImGui.EndTabItem();
+            }
+        }
+    }
+
+    private void DrawTitlesTab() {
         var modified = false;
         ImGui.BeginGroup();
         {
@@ -625,10 +642,244 @@ public class ConfigWindow : Window {
         }
     }
 
+    private int selectedPaletteIndex = -1;
+    private Vector3 editingPaintColor = Vector3.One;
+
+    private void DrawPalettesTab()
+    {
+        var modified = false;
+
+        ImGui.BeginGroup();
+        {
+            if (ImGui.BeginChild("palette_select", ImGuiHelpers.ScaledVector2(240, 0) - iconButtonSize with { X = 0 }, true))
+            {
+                for (int i = 0; i < config.Palettes.Count; i++)
+                {
+                    var palette = config.Palettes[i];
+                    ImGui.BeginGroup();
+                    if (ImGui.Selectable($"{palette.Name}##{palette.UniqueId}", selectedPaletteIndex == i, ImGuiSelectableFlags.AllowDoubleClick, new Vector2(220, 0)))
+                    {
+                        selectedPaletteIndex = i;
+                    }
+                    ImGui.EndGroup();
+                }
+
+                ImGuiHelpers.ScaledDummy(10);
+
+                if (ImGuiComponents.IconButton(FontAwesomeIcon.Plus))
+                {
+                    var newPalette = new Palette
+                    {
+                        Name = $"New Palette {config.Palettes.Count + 1}",
+                        UniqueId = Guid.NewGuid().ToString(),
+                        Paints = new()
+                    };
+                    config.Palettes.Add(newPalette);
+                    selectedPaletteIndex = config.Palettes.Count - 1;
+                    modified = true;
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add a new palette");
+
+                ImGui.SameLine();
+                if (selectedPaletteIndex >= 0 && selectedPaletteIndex < config.Palettes.Count)
+                {
+                    if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
+                    {
+                        config.Palettes.RemoveAt(selectedPaletteIndex);
+                        selectedPaletteIndex = -1;
+                        modified = true;
+                    }
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Delete selected palette");
+                }
+
+                ImGui.SameLine();
+                if (ImGuiComponents.IconButton(FontAwesomeIcon.Download))
+                {
+                    if (selectedPaletteIndex >= 0 && selectedPaletteIndex < config.Palettes.Count)
+                    {
+                        var export = Palette.ExportPalette(config.Palettes[selectedPaletteIndex]);
+                        ImGui.SetClipboardText(export);
+                    }
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Export selected palette to clipboard");
+
+                ImGui.SameLine();
+                if (ImGuiComponents.IconButton(FontAwesomeIcon.Upload))
+                {
+                    var importStr = ImGui.GetClipboardText();
+                    var imported = Palette.ImportPalette(importStr);
+                    if (imported != null)
+                    {
+                        config.Palettes.Add(imported);
+                        selectedPaletteIndex = config.Palettes.Count - 1;
+                        modified = true;
+                    }
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Import palette from clipboard");
+
+            }
+            ImGui.EndChild();
+        }
+        ImGui.EndGroup();
+
+        ImGui.SameLine();
+
+        if (ImGui.BeginChild("palette_view", ImGuiHelpers.ScaledVector2(0), true))
+        {
+            if (selectedPaletteIndex >= 0 && selectedPaletteIndex < config.Palettes.Count)
+            {
+                var palette = config.Palettes[selectedPaletteIndex];
+
+                string paletteName = palette.Name;
+                if (ImGui.InputText("Palette name:", ref paletteName, 64))
+                {
+                    palette.Name = paletteName;
+                    modified = true;
+                }
+
+                ImGui.Separator();
+                ImGui.Text("Palette preview :");
+                var previewText = paletteName;
+                var previewSeString = Palette.PaintSeString(previewText, palette, Vector3.One, Vector3.Zero);
+                ImGuiHelpers.SeStringWrapped(previewSeString.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue });
+                ImGui.TextDisabled($"ID : {palette.UniqueId}");
+                
+                ImGui.Separator();
+
+                int deletePaint = -1, movePaintUp = -1, movePaintDown = -1;
+                for (int i = 0; i < palette.Paints.Count; i++)
+                {
+                    var paint = palette.Paints[i];
+                    ImGui.PushID(i);
+
+                    ImGui.BeginGroup();
+
+                    // Gestion buttons
+                    ImGui.SameLine();
+                    if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
+                        deletePaint = i;
+
+                    ImGui.SameLine();
+                    using (ImRaii.Disabled(i <= 0))
+                        if (ImGuiComponents.IconButton(FontAwesomeIcon.ArrowUp) && i > 0)
+                            movePaintUp = i;
+
+                    ImGui.SameLine();
+                    using (ImRaii.Disabled(i >= palette.Paints.Count - 1))
+                        if (ImGuiComponents.IconButton(FontAwesomeIcon.ArrowDown) && i < palette.Paints.Count - 1)
+                            movePaintDown = i;
+
+                    ImGui.SameLine();
+
+                    // Type
+                    ImGui.SetNextItemWidth(120 * ImGuiHelpers.GlobalScale);
+                    if (ImGui.BeginCombo("Type", paint.Type.ToString()))
+                    {
+                        foreach (PaintType type in Enum.GetValues<PaintType>())
+                        {
+                            if (ImGui.Selectable(type.ToString(), paint.Type == type))
+                            {
+                                paint.Type = type;
+                                modified = true;
+                            }
+                        }
+                        ImGui.EndCombo();
+                    }
+                    ImGui.SameLine();
+
+                    // Color 1
+                    ImGui.Text("C1");
+                    ImGui.SameLine();
+                    Vector3 color1 = paint.Color1;
+                    if (ImGui.ColorEdit3($"##color1_{i}", ref color1, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                    {
+                        paint.Color1 = color1;
+                        modified = true;
+                    }
+
+                    
+
+                    // Color 2
+                    if (paint.Type != PaintType.Static)
+                    {
+                        ImGui.SameLine();
+                        ImGui.Text("C2");
+                        ImGui.SameLine();
+                        if (paint.Color2 == null) paint.Color2 = Vector3.One;
+                        Vector3 color2 = paint.Color2 ?? Vector3.One;
+                        if (ImGui.ColorEdit3($"##color2_{i}", ref color2, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
+                        {
+                            paint.Color2 = color2 ;
+                            modified = true;
+                            }
+                        }
+
+                    // Length
+                    ImGui.SameLine();
+                    ImGui.SetNextItemWidth(80 * ImGuiHelpers.GlobalScale);
+                    int length = (int)paint.Length;
+                    if (ImGui.InputInt("Paint length", ref length))
+                    {
+                        paint.Length = (uint)Math.Max(0, length);
+                        modified = true;
+                    }
+
+
+                    ImGui.EndGroup();
+                    ImGui.PopID();
+                    ImGui.Separator();
+                }
+
+                // Gestion des Paints
+                if (deletePaint >= 0)
+                {
+                    palette.Paints.RemoveAt(deletePaint);
+                    modified = true;
+                }
+                if (movePaintUp > 0)
+                {
+                    var tmp = palette.Paints[movePaintUp];
+                    palette.Paints.RemoveAt(movePaintUp);
+                    palette.Paints.Insert(movePaintUp - 1, tmp);
+                    modified = true;
+                }
+                if (movePaintDown >= 0 && movePaintDown < palette.Paints.Count - 1)
+                {
+                    var tmp = palette.Paints[movePaintDown];
+                    palette.Paints.RemoveAt(movePaintDown);
+                    palette.Paints.Insert(movePaintDown + 1, tmp);
+                    modified = true;
+                }
+
+                if (ImGui.Button("Add a paint"))
+                {
+                    palette.Paints.Add(new Paint { Type = PaintType.Static, Color1 = Vector3.One, Length = 0 });
+                    modified = true;
+                }
+            }
+            else
+            {
+                ImGui.Text("Select a palette to edit.");
+            }
+        }
+        ImGui.EndChild();
+
+        // Sauvegarde si modifié
+        if (modified)
+        {
+            configModifiedStopwatch.Restart();
+        }
+        if (configModifiedStopwatch.ElapsedMilliseconds > 1000)
+        {
+            PluginService.PluginInterface.SavePluginConfig(config);
+            configModifiedStopwatch.Reset();
+        }
+    }
+
     private void DrawCharacterView(CharacterConfig? characterConfig, IGameObject? activeCharacter, ref bool modified) {
         if (characterConfig == null) return;
         
-        if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
+        if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 7 : 5)) {
             ImGui.TableSetupColumn("Enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
             ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
             ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
@@ -636,7 +887,8 @@ public class ConfigWindow : Window {
                 ImGui.TableSetupColumn("Colour", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
                 ImGui.TableSetupColumn("Glow", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
             }
-            ImGui.TableSetupColumn("Condition", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Palette", ImGuiTableColumnFlags.WidthFixed, 120 * ImGuiHelpers.GlobalScale); 
+            ImGui.TableSetupColumn("Condition", ImGuiTableColumnFlags.WidthStretch, 150 * ImGuiHelpers.GlobalScale);
             ImGui.TableHeadersRow();
             
             if (characterConfig.Override.Enabled) {
@@ -644,6 +896,7 @@ public class ConfigWindow : Window {
                 // Override Title
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
+
                 if (ImGui.Button("Clear##ClearOverride", new Vector2(ImGui.GetContentRegionAvail().X, checkboxSize))) {
                     characterConfig.Override.Enabled = false;
                     characterConfig.Override.Title = string.Empty;
@@ -670,6 +923,8 @@ public class ConfigWindow : Window {
                 var title = characterConfig.CustomTitles[i];
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
+
+
 
                 ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, Vector2.One);
                 ImGui.PushFont(UiBuilder.IconFont);
@@ -735,9 +990,31 @@ public class ConfigWindow : Window {
                 if (ImGui.IsItemClicked(ImGuiMouseButton.Right)) {
                     ImGui.SetClipboardText($"/honorific title toggle {title.GetUniqueId(characterConfig)}");
                 }
-                
+
                 DrawTitleCommon(title, ref modified);
 
+                ImGui.TableNextColumn(); // Palette
+                int paletteIndex = title.TitlePalette == null ? 0 : config.Palettes.FindIndex(p => p.UniqueId == title.TitlePalette.UniqueId) + 1;
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 180 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 120 * ImGuiHelpers.GlobalScale);
+                if (ImGui.BeginCombo($"Palette##palette_{i}", paletteIndex == 0 ? "None" : config.Palettes[paletteIndex - 1].Name))
+                {
+                    if (ImGui.Selectable("None", paletteIndex == 0))
+                    {
+                        title.TitlePalette = null;
+                        modified = true;
+                    }
+                    for (int p = 0; p < config.Palettes.Count; p++)
+                    {
+                        if (ImGui.Selectable(config.Palettes[p].Name, paletteIndex == p + 1))
+                        {
+                            title.TitlePalette = config.Palettes[p];
+                            modified = true;
+                        }
+                    }
+                    ImGui.EndCombo();
+                }
+
+                ImGui.TableNextColumn();
                 ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X < 350 * ImGuiHelpers.GlobalScale ? ImGui.GetContentRegionAvail().X : 150 * ImGuiHelpers.GlobalScale);
                 if (ImGui.BeginCombo("##conditionType", title.TitleCondition.GetAttribute<DescriptionAttribute>()?.Description ?? $"{title.TitleCondition}")) {
                     foreach (var v in Enum.GetValues<TitleConditionType>()) {
@@ -1327,6 +1604,8 @@ public class ConfigWindow : Window {
             }
         }
 
+        
+
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
         modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
@@ -1344,8 +1623,6 @@ public class ConfigWindow : Window {
             anyModified = true;
             title.UpdateWarning();
         }
-        
-        ImGui.TableNextColumn();
     }
 
     public bool DragDropColourTarget(ref Vector3? color) {
