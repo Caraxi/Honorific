@@ -670,7 +670,7 @@ public class ConfigWindow : Window {
                 {
                     var newPalette = new Palette
                     {
-                        Name = $"Nouvelle Palette {config.Palettes.Count + 1}",
+                        Name = $"New Palette {config.Palettes.Count + 1}",
                         UniqueId = Guid.NewGuid().ToString(),
                         Paints = new()
                     };
@@ -678,7 +678,7 @@ public class ConfigWindow : Window {
                     selectedPaletteIndex = config.Palettes.Count - 1;
                     modified = true;
                 }
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Ajouter une nouvelle palette");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Add a new palette");
 
                 ImGui.SameLine();
                 if (selectedPaletteIndex >= 0 && selectedPaletteIndex < config.Palettes.Count)
@@ -689,7 +689,7 @@ public class ConfigWindow : Window {
                         selectedPaletteIndex = -1;
                         modified = true;
                     }
-                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Supprimer la palette sélectionnée");
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Delete selected palette");
                 }
 
                 ImGui.SameLine();
@@ -701,7 +701,7 @@ public class ConfigWindow : Window {
                         ImGui.SetClipboardText(export);
                     }
                 }
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Exporter la palette vers le presse-papier");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Export selected palette to clipboard");
 
                 ImGui.SameLine();
                 if (ImGuiComponents.IconButton(FontAwesomeIcon.Upload))
@@ -715,7 +715,7 @@ public class ConfigWindow : Window {
                         modified = true;
                     }
                 }
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Importer une palette depuis le presse-papier");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Import palette from clipboard");
 
             }
             ImGui.EndChild();
@@ -771,7 +771,7 @@ public class ConfigWindow : Window {
                     ImGui.SameLine();
 
                     // Color 1
-                    ImGui.Text("Colour 1");
+                    ImGui.Text("C1");
                     ImGui.SameLine();
                     Vector3 color1 = paint.Color1;
                     if (ImGui.ColorEdit3($"##color1_{i}", ref color1, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel))
@@ -786,7 +786,7 @@ public class ConfigWindow : Window {
                     if (paint.Type != PaintType.Static)
                     {
                         ImGui.SameLine();
-                        ImGui.Text("Colour 2");
+                        ImGui.Text("C2");
                         ImGui.SameLine();
                         if (paint.Color2 == null) paint.Color2 = Vector3.One;
                         Vector3 color2 = paint.Color2 ?? Vector3.One;
@@ -807,7 +807,7 @@ public class ConfigWindow : Window {
                         modified = true;
                     }
 
-                    // Boutons de gestion
+                    // Gestion buttons
                     ImGui.SameLine();
                     if (ImGuiComponents.IconButton(FontAwesomeIcon.Trash))
                         deletePaint = i;
@@ -844,7 +844,7 @@ public class ConfigWindow : Window {
                     modified = true;
                 }
 
-                if (ImGui.Button("Ajouter une peinture"))
+                if (ImGui.Button("Add a paint"))
                 {
                     palette.Paints.Add(new Paint { Type = PaintType.Static, Color1 = Vector3.One, Length = 0 });
                     modified = true;
@@ -852,7 +852,7 @@ public class ConfigWindow : Window {
             }
             else
             {
-                ImGui.Text("Sélectionnez une palette à éditer.");
+                ImGui.Text("Select a palette to edit.");
             }
         }
         ImGui.EndChild();
