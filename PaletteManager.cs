@@ -290,6 +290,41 @@ namespace Honorific
             );
         }
 
+        public static Vector3 HexStringToColorVector(string s)
+        {
+            float r, g, b;
+            if (s.StartsWith("#"))
+                s = s.Substring(1);
+            if (s.Length == 6) 
+            {
+                r = Convert.ToInt32(s.Substring(0, 2), 16) / 255f;
+                g = Convert.ToInt32(s.Substring(2, 2), 16) / 255f;
+                b = Convert.ToInt32(s.Substring(4, 2), 16) / 255f;
+            }
+            else if (s.Length == 3)
+            {
+                r = Convert.ToInt32(s[0].ToString() + s[0].ToString(), 16) / 255f;
+                g = Convert.ToInt32(s[1].ToString() + s[1].ToString(), 16) / 255f;
+                b = Convert.ToInt32(s[2].ToString() + s[2].ToString(), 16) / 255f;
+            }
+            else
+            {
+                throw new FormatException($"Invalid hex format: {s}");
+                r = 0f;
+                g = 0f;
+                b = 0f;
+            }
+            return new Vector3(r, g, b);
+        }
+
+        public static string ColorVectorToHexString(Vector3 color)
+        {
+            int r = (int)(Math.Clamp(color.X, 0f, 1f) * 255);
+            int g = (int)(Math.Clamp(color.Y, 0f, 1f) * 255);
+            int b = (int)(Math.Clamp(color.Z, 0f, 1f) * 255);
+            return $"#{r:X2}{g:X2}{b:X2}";
+        }
+
         public static string ExportPalette(Palette palette)
         {
             var sb = new StringBuilder();
@@ -299,8 +334,8 @@ namespace Honorific
             foreach (var paint in palette.Paints)
             {
                 sb.Append(paint.Type.ToString()).Append(":");
-                sb.Append($"{paint.Color1.X},{paint.Color1.Y},{paint.Color1.Z}").Append(":");
-                sb.Append(paint.Color2.HasValue ? $"{paint.Color2.Value.X},{paint.Color2.Value.Y},{paint.Color2.Value.Z}" : "null").Append(":");
+                sb.Append(ColorVectorToHexString(paint.Color1)).Append(":");
+                sb.Append(paint.Color2.HasValue ? ColorVectorToHexString((Vector3) paint.Color2) : "null").Append(":");
                 sb.Append(paint.Length).Append(":");
             }
             return sb.ToString();
@@ -321,9 +356,9 @@ namespace Honorific
                 {
                     var paint = new Paint();
                     paint.Type = Enum.Parse<PaintType>(lines[offset + i * 4]);
-                    paint.Color1 = ParseVector3(lines[offset + i * 4 + 1]);
+                    paint.Color1 = HexStringToColorVector(lines[offset + i * 4 + 1]);
                     if (lines[offset + i * 4 + 2] != "null")
-                        paint.Color2 = ParseVector3(lines[offset + i * 4 + 2]);
+                        paint.Color2 = HexStringToColorVector(lines[offset + i * 4 + 2]);
                     else
                         paint.Color2 = null;
                     if (uint.TryParse(lines[offset + i * 4 + 3], out var length))

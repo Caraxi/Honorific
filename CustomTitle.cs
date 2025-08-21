@@ -71,7 +71,7 @@ public partial class CustomTitle {
 
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
-        if (TitlePalette != null) {
+        if (TitlePalette != null && includeColor) {
             return Palette.PaintSeString(Title,TitlePalette);
         } else {
             var builder = new SeStringBuilder();
