@@ -136,7 +136,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var name = GetString(3);
         if (name == null || string.IsNullOrWhiteSpace(name.TextValue)) return;
 
-        var server = GetString(74);
+        var server = GetString(101);
         if (server == null || string.IsNullOrWhiteSpace(server.TextValue)) return;
 
         if (!PluginService.Data.GetExcelSheet<World>().TryGetFirst(w => w.IsPublic && w.Name.ExtractText() == server.TextValue, out var world)) return;
@@ -145,8 +145,8 @@ public unsafe class Plugin : IDalamudPlugin {
         if (obj is not IPlayerCharacter playerCharacter) return;
 
         if (!TryGetTitle(playerCharacter, out var title) || title == null) return;
-        var nameNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 7U : 6U);
-        var titleNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 6U : 7U);
+        var nameNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 12U : 11U);
+        var titleNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 11U : 12U);
         if (nameNode == null || titleNode == null) return;
         nameNode->SetText(name.Encode());
         titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles).Encode());
