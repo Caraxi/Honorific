@@ -102,20 +102,27 @@ public partial class CustomTitle {
         if (includeColor && RainbowMode <= 0 && Glow != null) builder.PushEdgeColorRgba(new Vector4(Glow.Value, 1));
 
         if (includeColor && RainbowMode > 0) {
-            var i = 0;
-            
-            foreach (var c in Title) {
-
-                var glow = CustomRainbowStyle != null
-                    ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5, animate)
-                    : RainbowColour.GetColourRGB(RainbowMode, i++, 5, animate);
-                builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
-                builder.AppendChar(c);
-                builder.PopEdgeColor();
+            if (Title.Length > 25) {
+                for (var i = 0; i < Title.Length; i+=2) {
+                    var glow = CustomRainbowStyle != null
+                        ? RainbowColour.GetColourRGB(CustomRainbowStyle, i, 5, animate)
+                        : RainbowColour.GetColourRGB(RainbowMode, i, 5, animate);
+                    builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
+                    builder.Append(Title.Substring(i, Math.Min(2, Title.Length - i)));
+                    builder.PopEdgeColor();
+                }
+            } else {
+                var i = 0;
+                foreach (var c in Title) {
+                    var glow = CustomRainbowStyle != null
+                        ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5, animate)
+                        : RainbowColour.GetColourRGB(RainbowMode, i++, 5, animate);
+                    builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
+                    builder.AppendChar(c);
+                    builder.PopEdgeColor();
+                }
             }
-            // builder.AddText(Title);
         } else {
-                    
             builder.Append(Title);
         }
 
