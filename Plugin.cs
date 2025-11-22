@@ -95,11 +95,30 @@ public unsafe class Plugin : IDalamudPlugin {
         PluginService.Framework.RunOnTick(DoIpcCleanup, delay: TimeSpan.FromSeconds(5), cancellationToken: pluginLifespan.Token);
         PluginService.ClientState.TerritoryChanged += OnTerritoryChanged;
         PluginService.NamePlateGui.OnPostNamePlateUpdate += UpdateDisplayedPlateList;
+        PluginService.AddonLifecycle.RegisterListener(AddonEvent.PreRequestedUpdate, "NamePlate", NameplateRequestedUpdate);
         #if DEBUG
         IsDebug = true;
         #endif
     }
     
+    private void NameplateRequestedUpdate(AddonEvent type, AddonArgs args) {
+        if (!Config.EnableAntiFlashing) return; 
+        var addon = (AtkUnitBase*) args.Addon.Address;
+        var mode = &AtkStage.Instance()->GetNumberArrayData()[5]->IntArray[3];
+        if (*mode == 1) return;
+        *mode = 1;
+        foreach (var n in addon->UldManager.Nodes) {
+            if (n.Value == null) continue;
+            if (n.Value->Type != (NodeType) 1001) continue;
+            if (!n.Value->IsVisible()) continue;
+            var componentNode = (AtkComponentNode*)n.Value;
+            var component = componentNode->Component;
+            var textNode = component->GetTextNodeById(3);
+            if (textNode == null || textNode->IsVisible() == false) continue;
+            textNode->TextFlags = TextFlags.Edge | TextFlags.Glare | TextFlags.MultiLine | (TextFlags)0x1000 | (TextFlags)0x4000 | (TextFlags)0x8000;
+        }
+    }
+
     public static Dictionary<ulong, (SeString Title, bool Visible, Stopwatch Updated)> DisplayedTitles { get; } = new();
     private void UpdateDisplayedPlateList(INamePlateUpdateContext context, IReadOnlyList<INamePlateUpdateHandler> handlers) {
         using var _ = PerformanceMonitors.Run(nameof(UpdateDisplayedPlateList));

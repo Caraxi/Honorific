@@ -4,29 +4,32 @@ using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
-using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Colors;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Newtonsoft.Json;
+using SeString = Dalamud.Game.Text.SeStringHandling.SeString;
+using SeStringBuilder = Lumina.Text.SeStringBuilder;
 
 namespace Honorific;
 
 public class TitleData {
+    
     public string? Title = string.Empty;
     public bool IsPrefix;
     public bool IsOriginal;
     public Vector3? Color;
     public Vector3? Glow;
+    public int RainbowMode;
 
     public static implicit operator TitleData(CustomTitle title) => new() {
         Title = title.Title,
         IsPrefix = title.IsPrefix,
         Color = title.Color,
         Glow = title.Glow,
-        IsOriginal = title.IsOriginal
+        IsOriginal = title.IsOriginal,
+        RainbowMode = title.RainbowMode
     };
     public static implicit operator CustomTitle(TitleData data) => new() {
         Title = data.Title,
@@ -34,7 +37,27 @@ public class TitleData {
         Color = data.Color,
         Glow = data.Glow,
         IsOriginal = data.IsOriginal,
+        RainbowMode = data.RainbowMode,
     };
+
+    public override bool Equals(object? obj) {
+        if (obj is not TitleData other) return false;
+        return Title == other.Title
+               && IsPrefix == other.IsPrefix
+               && IsOriginal == other.IsOriginal
+               && NullableVectorEquals(Color, other.Color)
+               && NullableVectorEquals(Glow, other.Glow)
+               && RainbowMode == other.RainbowMode;
+    }
+               
+    
+    private static bool NullableVectorEquals(Vector3? a, Vector3? b) {
+        if (!a.HasValue && !b.HasValue) return true;
+        if (a.HasValue != b.HasValue) return false;
+        return a!.Value == b!.Value;
+    }
+    
+    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, RainbowMode);
 }
 
 public partial class CustomTitle {
@@ -46,6 +69,11 @@ public partial class CustomTitle {
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
     public int ConditionParam0;
+
+    public int RainbowMode;
+    public RainbowColour.RainbowStyle? CustomRainbowStyle;
+    
+    
 
     public bool ShouldSerializeLocationCondition() => TitleCondition == TitleConditionType.Location;
     public LocationCondition? LocationCondition;
@@ -68,15 +96,34 @@ public partial class CustomTitle {
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
         var builder = new SeStringBuilder();
-        if (includeQuotes) builder.AddText("《");
+        if (includeQuotes) builder.Append("《");
 
-        if (includeColor && Color != null) builder.Add(new ColorPayload(Color.Value));
-        if (includeColor && Glow != null) builder.Add(new GlowPayload(Glow.Value));
-        builder.AddText(Title);
-        if (includeColor && Glow != null) builder.Add(new GlowEndPayload());
-        if (includeColor && Color != null) builder.Add(new ColorEndPayload());
-        if (includeQuotes) builder.AddText("》");
-        return builder.Build().Cleanup();
+        if (includeColor && Color != null) builder.PushColorRgba(new Vector4(Color.Value, 1));
+        if (includeColor && RainbowMode <= 0 && Glow != null) builder.PushEdgeColorRgba(new Vector4(Glow.Value, 1));
+
+        if (includeColor && RainbowMode > 0) {
+            var i = 0;
+            
+            foreach (var c in Title) {
+
+                var glow = CustomRainbowStyle != null
+                    ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5)
+                    : RainbowColour.GetColourRGB(RainbowMode, i++, 5);
+                builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
+                builder.AppendChar(c);
+                builder.PopEdgeColor();
+            }
+            // builder.AddText(Title);
+        } else {
+                    
+            builder.Append(Title);
+        }
+
+
+        if (includeColor && RainbowMode <= 0 && Glow != null) builder.PopEdgeColor();
+        if (includeColor && Color != null) builder.PopColor();
+        if (includeQuotes) builder.Append("》");
+        return SeString.Parse(builder.GetViewAsSpan());
     }
     
     public string GetUniqueId(CharacterConfig characterConfig) {

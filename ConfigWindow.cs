@@ -126,6 +126,7 @@ public class ConfigWindow : Window {
     private string selectedName = string.Empty;
     private uint selectedWorld;
     private float kofiButtonOffset;
+    private bool showSupporterCheckbox;
 
     private CustomTitle forcedTitleCommandGeneratorTitle = new();
     
@@ -405,6 +406,7 @@ public class ConfigWindow : Window {
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
                 ImGui.Checkbox("Display titles in 'Examine' window.", ref config.ApplyToInspect);
                 ImGui.Checkbox("Display preview in config window.", ref config.DisplayPreviewInConfigWindow);
+                ImGui.Checkbox("Attempt to reduce nameplate flashing", ref config.EnableAntiFlashing);
                 
                 if (ImGuiExt.TriStateCheckbox("##HideVanillaAll", out var setAll, config.HideVanillaSelf, config.HideVanillaParty, config.HideVanillaAlliance, config.HideVanillaFriends, config.HideVanillaOther)) {
                     if (setAll != null) {
@@ -429,10 +431,24 @@ public class ConfigWindow : Window {
                 
                 ImGui.SameLine();
                 ImGuiComponents.HelpMarker("Hides titles that were not set by honorific.");
-                
-                
-                
                 ImGui.Checkbox("Hide Ko-fi Support button", ref config.HideKofi);
+                if (ImGui.CollapsingHeader("Supporter Options")) {
+                    using (ImRaii.PushIndent()) {
+                        ImGui.TextWrapped("Supporting me on Ko-fi will allow access to extra features within honorific. I can make no guarantee these features will remain available, but I will do my best.");
+                        if (ImGui.Button("Support Caraxi on Ko-Fi")) {
+                            Util.OpenLink("https://ko-fi.com/Caraxi");
+                            showSupporterCheckbox = true;
+                        }
+
+                        if (showSupporterCheckbox || config.IsSupporter) {
+                            showSupporterCheckbox = true;
+                            ImGui.Checkbox("Tick this box to enable supporter only features", ref config.IsSupporter);
+                        }
+                    }
+                }
+                
+                
+                
                 
                 #if DEBUG
                 ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
@@ -608,6 +624,10 @@ public class ConfigWindow : Window {
                             }
                         }
                     }
+                }
+
+                if (config.IsSupporter && ImGui.CollapsingHeader("Gradient Builder")) {
+                    RainbowColour.DrawGradientBuilder();
                 }
             }
             
@@ -1285,6 +1305,122 @@ public class ConfigWindow : Window {
             var textSize = ImGui.CalcTextSize("Confirm");
             dl.AddText(ImGui.GetItemRectMin() + size / 2 - textSize / 2, ImGui.ColorConvertFloat4ToU32(new Vector4(editingColour, 1)) ^ 0x00FFFFFF, "Confirm");
             ImGui.ColorPicker3($"##ColorPick", ref editingColour, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview);
+            ImGui.EndCombo();
+        }
+
+        return modified;
+    }
+
+    private bool DrawGlowPicker(string label, CustomTitle title, ref Vector3? color, ref int rainbowMode, bool showArrow = true) {
+        using var group = ImRaii.Group();
+        var modified = false;
+        bool comboOpen;
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
+        if (rainbowMode > 0) {
+
+            var rainbowColor = new Vector4(RainbowColour.GetColourVec3(rainbowMode, 0, 3), 1);
+
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, rainbowColor);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, rainbowColor);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, rainbowColor);
+            comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
+            
+            ImGui.PopStyleColor(3);
+            
+        } else if (color == null) {
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, 0xFFFFFFFF);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, 0xFFFFFFFF);
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, 0xFFFFFFFF);
+            var p = ImGui.GetCursorScreenPos();
+            var dl = ImGui.GetWindowDrawList();
+            comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
+            dl.AddLine(p, p + new Vector2(checkboxSize), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
+            ImGui.PopStyleColor(3);
+        } else {
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(color.Value, 1));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new Vector4(color.Value, 1));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(color.Value, 1));
+            comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
+            ImGui.PopStyleColor(3);
+        }
+        
+        if (comboOpen) {
+            
+            if (ImGui.IsWindowAppearing()) {
+                editingColour = color ?? Vector3.One;
+            }
+            
+            if ((rainbowMode > 0 || config.IsSupporter) && ImGui.BeginCombo($"##rainbowModeSelect_{label}", rainbowMode <= 0 ? "Default Glow" : "")) {
+                if (ImGui.Selectable("Default Glow", rainbowMode <= 0)) {
+                    rainbowMode = 0;
+                }
+
+                for (var i = 1; i <= RainbowColour.NumColourLists; i++) {
+                    if (ImGui.Selectable($"##rainbowMode_{i}", rainbowMode == i)) {
+                        rainbowMode = i;
+                    }
+                    ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                    var dl = ImGui.GetWindowDrawList();
+                    var t = new CustomTitle() { Color = title.Color, RainbowMode = i, Title = RainbowColour.GetName(i) };
+                    
+                    ImGuiHelpers.SeStringWrapped(t.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                    ImGui.NewLine();
+                }
+                
+                ImGui.EndCombo();
+            }
+
+            if (rainbowMode > 0) {
+                var rainbowModeTitle = new CustomTitle() { Color = title.Color, RainbowMode = rainbowMode, Title = RainbowColour.GetName(rainbowMode) };
+                ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                
+                ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
+            }
+           
+            
+            if (rainbowMode <= 0) {
+                if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
+                    color = null;
+                    modified = true;
+                    ImGui.CloseCurrentPopup();
+                }
+
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Clear selected colour");
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                }
+                var dl = ImGui.GetWindowDrawList();
+                dl.AddLine(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0xFF0000FF, 3f * ImGuiHelpers.GlobalScale);
+
+                if (color != null) {
+                    ImGui.SameLine();
+                    if (ImGui.ColorButton($"##ColorPick_old", new Vector4(color.Value, 1), ImGuiColorEditFlags.NoTooltip)) {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    if (ImGui.IsItemHovered()) {
+                        ImGui.SetTooltip("Revert to previous selection");
+                        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                    }
+                }
+                
+                ImGui.SameLine();
+                
+                if (ImGui.ColorButton("Confirm", new Vector4(editingColour, 1), ImGuiColorEditFlags.NoTooltip, new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y))) {
+                    color = editingColour;
+                    modified = true;
+                    ImGui.CloseCurrentPopup();
+                }
+                var size = ImGui.GetItemRectSize();
+
+                if (ImGui.IsItemHovered()) {
+                    dl.AddRectFilled(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0x33333333);
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                }
+                
+                var textSize = ImGui.CalcTextSize("Confirm");
+                dl.AddText(ImGui.GetItemRectMin() + size / 2 - textSize / 2, ImGui.ColorConvertFloat4ToU32(new Vector4(editingColour, 1)) ^ 0x00FFFFFF, "Confirm");
+                ImGui.ColorPicker3($"##ColorPick", ref editingColour, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview);
+            }
 
             ImGui.EndCombo();
         }
@@ -1336,7 +1472,7 @@ public class ConfigWindow : Window {
             modified |= DrawColorPicker("##colour", ref title.Color);
             modified |= DragDropColourTarget(ref title.Color);
             ImGui.TableNextColumn();
-            modified |= DrawColorPicker("##glow", ref title.Glow); 
+            modified |= DrawGlowPicker("##glow", title, ref title.Glow, ref title.RainbowMode); 
             modified |= DragDropColourTarget(ref title.Glow);
         }
 

@@ -19,6 +19,8 @@ public class PluginConfig : IPluginConfiguration {
     public bool HideVanillaAlliance;
     public bool HideVanillaFriends;
     public bool HideVanillaOther;
+    public bool IsSupporter;
+    public bool EnableAntiFlashing = true;
 
     public Dictionary<ulong, (string, uint)> IdentifyAs = new();
     
