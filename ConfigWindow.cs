@@ -599,8 +599,10 @@ public class ConfigWindow : Window {
                                                 c += $"{(byte)(t.Color.Value.X * 255):X2}";
                                                 c += $"{(byte)(t.Color.Value.Y * 255):X2}";
                                                 c += $"{(byte)(t.Color.Value.Z * 255):X2}";
-                                                
-                                                if (t.Glow != null) {
+
+                                                if (t.RainbowMode > 0) {
+                                                    c += $" | +{t.RainbowMode}";
+                                                } else if (t.Glow != null) {
                                                     c += " | #";
                                                     c += $"{(byte)(t.Glow.Value.X * 255):X2}";
                                                     c += $"{(byte)(t.Glow.Value.Y * 255):X2}";
@@ -627,7 +629,8 @@ public class ConfigWindow : Window {
                     }
                 }
 
-                if (config.IsSupporter && ImGui.CollapsingHeader("Gradient Builder")) {
+                if (config.IsSupporter && config.ShowGradientBuilder && ImGui.CollapsingHeader("Gradient Builder")) {
+                    ImGui.TextColoredWrapped(ImGuiColors.DalamudGrey, "The Gradient Builder is for me to create new preset designs. It is not intended for use by end users, but I've left it available to allow people to create them to share with me to add. You will not be able to use any gradient you create on a title.");
                     RainbowColour.DrawGradientBuilder();
                 }
             }

@@ -22,6 +22,7 @@ public class PluginConfig : IPluginConfiguration {
     public bool IsSupporter;
     public bool EnableAnimation = true;
     public bool EnableAntiFlashing = true;
+    public bool ShowGradientBuilder;
 
     public Dictionary<ulong, (string, uint)> IdentifyAs = new();
     

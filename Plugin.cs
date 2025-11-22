@@ -80,6 +80,7 @@ public unsafe class Plugin : IDalamudPlugin {
         
         PluginService.HookProvider.InitializeFromAttributes(this);
         PluginService.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "CharacterInspect", RefreshCharacterInspect);
+        PluginService.AddonLifecycle.RegisterListener(AddonEvent.PreDraw, "CharacterInspect", UpdateCharacterInspectAnimation);
         updateNameplateHook?.Enable();
         updateNameplateHookNpc?.Enable();
 
@@ -101,6 +102,15 @@ public unsafe class Plugin : IDalamudPlugin {
         #endif
     }
     
+    private void UpdateCharacterInspectAnimation(AddonEvent type, AddonArgs args) {
+        if (!Config.EnableAnimation) return;
+        if (characterInspectAnimatedTitle == null) return;
+        var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
+        var titleNode = atkUnitBase->GetTextNodeById(characterInspectAnimatedTitle.IsPrefix ? 11U : 12U);
+        if (titleNode == null) return;
+        titleNode->SetText(characterInspectAnimatedTitle.ToSeString(false, Config.ShowColoredTitles, Config.EnableAnimation).Encode());
+    }
+
     private void NameplateRequestedUpdate(AddonEvent type, AddonArgs args) {
         if (!Config.EnableAntiFlashing) return; 
         var addon = (AtkUnitBase*) args.Addon.Address;
@@ -137,8 +147,11 @@ public unsafe class Plugin : IDalamudPlugin {
             }
         }
     }
+
+    private CustomTitle? characterInspectAnimatedTitle;
     
     private void RefreshCharacterInspect(AddonEvent type, AddonArgs args) {
+        characterInspectAnimatedTitle = null;
         if (!Config.ApplyToInspect) return;
 
         var atkUnitBase = (AtkUnitBase*)args.Addon.Address;
@@ -169,6 +182,9 @@ public unsafe class Plugin : IDalamudPlugin {
         if (nameNode == null || titleNode == null) return;
         nameNode->SetText(name.Encode());
         titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles, Config.EnableAnimation).Encode());
+        if (title.RainbowMode > 0 && Config.EnableAnimation) {
+            characterInspectAnimatedTitle = new CustomTitle() { Title = title.Title, IsPrefix = title.IsPrefix, Color = title.Color, RainbowMode = title.RainbowMode, CustomRainbowStyle = title.CustomRainbowStyle, Glow = title.Glow };
+        }
     }
 
     private void OnCommand(string command, string args) {
@@ -366,6 +382,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     bool? prefix = null;
                     Vector3? color = null;
                     Vector3? glow = null;
+                    var rainbowMode = 0;
                     var silent = false;
                     
                     foreach (var a in setArgs) {
@@ -382,6 +399,10 @@ public unsafe class Plugin : IDalamudPlugin {
 
                         var arg = a.ToLower();
 
+                        if (arg.StartsWith('+') && int.TryParse(arg[1..], out rainbowMode)) {
+                            continue;
+                        }
+                        
                         var colorArg = arg.Skip(arg.StartsWith('#') ? 1 : 0).ToArray();
                         
                         if (colorArg.Length == 6 && colorArg.All(chr => chr is >= '0' and <= '9' or >= 'a' and <= 'f')) {
@@ -448,6 +469,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     characterConfig.Override.Glow = glow;
                     characterConfig.Override.IsPrefix = prefix ?? false;
                     characterConfig.Override.Enabled = true;
+                    characterConfig.Override.RainbowMode = rainbowMode;
 
                     if (!silent) {
                         PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString(animate: false)).Build());
@@ -507,6 +529,9 @@ public unsafe class Plugin : IDalamudPlugin {
                             HelpIdentity();
                             return;
                     }
+                case "togglegradientbuilder":
+                    Config.ShowGradientBuilder = !Config.ShowGradientBuilder;
+                    return;
                 case "help":
                     goto ShowHelp;
                 default: 
