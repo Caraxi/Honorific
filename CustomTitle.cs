@@ -93,7 +93,7 @@ public partial class CustomTitle {
         return true;
     }
 
-    public SeString ToSeString(bool includeQuotes = true, bool includeColor = true) {
+    public SeString ToSeString(bool includeQuotes = true, bool includeColor = true, bool animate = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
         var builder = new SeStringBuilder();
         if (includeQuotes) builder.Append("《");
@@ -107,8 +107,8 @@ public partial class CustomTitle {
             foreach (var c in Title) {
 
                 var glow = CustomRainbowStyle != null
-                    ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5)
-                    : RainbowColour.GetColourRGB(RainbowMode, i++, 5);
+                    ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5, animate)
+                    : RainbowColour.GetColourRGB(RainbowMode, i++, 5, animate);
                 builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
                 builder.AppendChar(c);
                 builder.PopEdgeColor();

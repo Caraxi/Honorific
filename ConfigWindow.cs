@@ -262,7 +262,7 @@ public class ConfigWindow : Window {
                                     ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectId.ObjectId:X8}");
                                     Util.ShowStruct(*npi, (ulong) npi, true, [$"{(ulong)npi:X}"]);
 
-                                    var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles);
+                                    var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles, config.EnableAnimation);
 
                                     var currentTitle = MemoryHelper.ReadSeString(&npi->DisplayTitle);
                                     ImGui.Text($"Current Title:");
@@ -404,6 +404,7 @@ public class ConfigWindow : Window {
                 ImGui.Separator();
 
                 ImGui.Checkbox("Display Coloured Titles", ref config.ShowColoredTitles);
+                if (config.ShowColoredTitles) ImGui.Checkbox("Allow title animations", ref config.EnableAnimation);
                 ImGui.Checkbox("Display titles in 'Examine' window.", ref config.ApplyToInspect);
                 ImGui.Checkbox("Display preview in config window.", ref config.DisplayPreviewInConfigWindow);
                 ImGui.Checkbox("Attempt to reduce nameplate flashing", ref config.EnableAntiFlashing);
@@ -1190,7 +1191,7 @@ public class ConfigWindow : Window {
             if (displayedTitle.Visible && activeCharacter is IPlayerCharacter pc) {
                 ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue});
                 if (plugin.TryGetTitle(pc, out var activeTitle) && activeTitle != null) {
-                    var expectedTitle = activeTitle.ToSeString(true, config.ShowColoredTitles);
+                    var expectedTitle = activeTitle.ToSeString(true, config.ShowColoredTitles, config.EnableAnimation);
                     if (!displayedTitle.Title.IsSameAs(expectedTitle, out _)) {
                         if (delayError.ElapsedMilliseconds > 1000) {
                             ImGui.Text("Expected Title:");
@@ -1363,7 +1364,7 @@ public class ConfigWindow : Window {
                     var dl = ImGui.GetWindowDrawList();
                     var t = new CustomTitle() { Color = title.Color, RainbowMode = i, Title = RainbowColour.GetName(i) };
                     
-                    ImGuiHelpers.SeStringWrapped(t.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                    ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
                     ImGui.NewLine();
                 }
                 
@@ -1374,7 +1375,7 @@ public class ConfigWindow : Window {
                 var rainbowModeTitle = new CustomTitle() { Color = title.Color, RainbowMode = rainbowMode, Title = RainbowColour.GetName(rainbowMode) };
                 ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
                 
-                ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
+                ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
             }
            
             
@@ -1458,7 +1459,7 @@ public class ConfigWindow : Window {
                 clipMin.Y = MathF.Max(clipMin.Y, ImGui.GetWindowPos().Y);
                 clipMax.Y = MathF.Min(clipMax.Y, ImGui.GetWindowPos().Y + ImGui.GetWindowHeight());
                 dl.PushClipRect(clipMin, clipMax);
-                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
                 dl.PopClipRect();
             }
         }

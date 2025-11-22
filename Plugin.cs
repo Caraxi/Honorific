@@ -168,7 +168,7 @@ public unsafe class Plugin : IDalamudPlugin {
         var titleNode = atkUnitBase->GetTextNodeById(title.IsPrefix ? 11U : 12U);
         if (nameNode == null || titleNode == null) return;
         nameNode->SetText(name.Encode());
-        titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles).Encode());
+        titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles, Config.EnableAnimation).Encode());
     }
 
     private void OnCommand(string command, string args) {
@@ -239,7 +239,7 @@ public unsafe class Plugin : IDalamudPlugin {
                                 if (!title.Enabled) {
                                     title.Enabled = true;
                                     enabled.Add(title);
-                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been enabled.").Build(), Name);
+                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString(animate: false)).AddText(" has been enabled.").Build(), Name);
                                 }
 
                                 break;
@@ -249,7 +249,7 @@ public unsafe class Plugin : IDalamudPlugin {
                                 if (title.Enabled) {
                                     title.Enabled = false;
                                     disabled.Add(title);
-                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString()).AddText(" has been disabled.").Build(), Name);
+                                    if (titles.Count == 1) PluginService.Chat.Print(new SeStringBuilder().Append(title.ToSeString(animate: false)).AddText(" has been disabled.").Build(), Name);
                                 }
                                 break;
                             }
@@ -265,7 +265,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         var message = new SeStringBuilder();
                         message.AddText("Enabled Titles: ");
                         foreach (var t in enabled) {
-                            message.Append(t.ToSeString());
+                            message.Append(t.ToSeString(animate: false));
                         }
 
                         PluginService.Chat.Print(message.Build(), Name);
@@ -275,7 +275,7 @@ public unsafe class Plugin : IDalamudPlugin {
                         var message = new SeStringBuilder();
                         message.AddText("Disabled Titles: ");
                         foreach (var t in disabled) {
-                            message.Append(t.ToSeString());
+                            message.Append(t.ToSeString(animate: false));
                         }
 
                         PluginService.Chat.Print(message.Build(), Name);
@@ -450,7 +450,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     characterConfig.Override.Enabled = true;
 
                     if (!silent) {
-                        PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString()).Build());
+                        PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString(animate: false)).Build());
                     }
                     
                     return;
@@ -590,7 +590,7 @@ public unsafe class Plugin : IDalamudPlugin {
         }
         
         var currentDisplayTitle = MemoryHelper.ReadSeString(&namePlateInfo->DisplayTitle);
-        var displayTitle = title.ToSeString(true, Config.ShowColoredTitles);
+        var displayTitle = title.ToSeString(true, Config.ShowColoredTitles, animate: Config.EnableAnimation);
 
         if (!displayTitle.IsSameAs(currentDisplayTitle, out var encoded)) {
             if (encoded == null || encoded.Length == 0) {

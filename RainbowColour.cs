@@ -43,16 +43,17 @@ public static unsafe class RainbowColour {
     public static string GetName(int i) => i > ColourLists.Count ? "Invalid" : ColourLists[i - 1].Name;
     public static readonly RGB White = (255, 255, 255);
 
-    public static RGB GetColourRGB(int rainbowMode, int chrIndex, int throttle) {
+    public static RGB GetColourRGB(int rainbowMode, int chrIndex, int throttle, bool animate = true) {
         if (rainbowMode == 0 || rainbowMode > ColourLists.Count) return White;
         var style = ColourLists[rainbowMode - 1];
-        return GetColourRGB(style, chrIndex, throttle);
+        return GetColourRGB(style, chrIndex, throttle, animate);
     }
     
-    public static RGB GetColourRGB(RainbowStyle style, int chrIndex, int throttle) {
+    public static RGB GetColourRGB(RainbowStyle style, int chrIndex, int throttle, bool animate = true) {
         if (throttle < 1) throttle = 1;
         var rainbowColors = style.Colours;
-        var i = (Framework.Instance()->FrameCounter / throttle + (chrIndex * style.ChrMultiplier)) % rainbowColors.GetLength(0);
+        var animationOffset = animate ? Framework.Instance()->FrameCounter : 0;
+        var i = (animationOffset/ throttle + (chrIndex * style.ChrMultiplier)) % rainbowColors.GetLength(0);
         return (rainbowColors[i, 0], rainbowColors[i, 1], rainbowColors[i, 2]);
     }
 

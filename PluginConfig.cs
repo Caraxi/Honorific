@@ -20,6 +20,7 @@ public class PluginConfig : IPluginConfiguration {
     public bool HideVanillaFriends;
     public bool HideVanillaOther;
     public bool IsSupporter;
+    public bool EnableAnimation = true;
     public bool EnableAntiFlashing = true;
 
     public Dictionary<ulong, (string, uint)> IdentifyAs = new();
