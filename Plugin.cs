@@ -615,7 +615,7 @@ public unsafe class Plugin : IDalamudPlugin {
         }
         
         var currentDisplayTitle = MemoryHelper.ReadSeString(&namePlateInfo->DisplayTitle);
-        var displayTitle = title.ToSeString(true, Config.ShowColoredTitles, animate: Config.EnableAnimation);
+        var displayTitle = title.ToSeString(title.IsOriginal || !Config.DisableQuotes, Config.ShowColoredTitles, animate: Config.EnableAnimation);
 
         if (!displayTitle.IsSameAs(currentDisplayTitle, out var encoded)) {
             if (encoded == null || encoded.Length == 0) {

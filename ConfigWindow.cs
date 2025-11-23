@@ -262,7 +262,7 @@ public class ConfigWindow : Window {
                                     ImGui.Text($"NamePlateStruct: [{(ulong)npi:X}] for {npi->ObjectId.ObjectId:X8}");
                                     Util.ShowStruct(*npi, (ulong) npi, true, [$"{(ulong)npi:X}"]);
 
-                                    var expectedTitleSeString = expectedTitle.ToSeString(true, config.ShowColoredTitles, config.EnableAnimation);
+                                    var expectedTitleSeString = expectedTitle.ToSeString(expectedTitle.IsOriginal || !config.DisableQuotes, config.ShowColoredTitles, config.EnableAnimation);
 
                                     var currentTitle = MemoryHelper.ReadSeString(&npi->DisplayTitle);
                                     ImGui.Text($"Current Title:");
@@ -432,6 +432,7 @@ public class ConfigWindow : Window {
                 
                 ImGui.SameLine();
                 ImGuiComponents.HelpMarker("Hides titles that were not set by honorific.");
+                ImGui.Checkbox("Hide 《 and 》 from honorific titles.", ref config.DisableQuotes);
                 ImGui.Checkbox("Hide Ko-fi Support button", ref config.HideKofi);
                 if (ImGui.CollapsingHeader("Supporter Options")) {
                     using (ImRaii.PushIndent()) {
@@ -1194,7 +1195,7 @@ public class ConfigWindow : Window {
             if (displayedTitle.Visible && activeCharacter is IPlayerCharacter pc) {
                 ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue});
                 if (plugin.TryGetTitle(pc, out var activeTitle) && activeTitle != null) {
-                    var expectedTitle = activeTitle.ToSeString(true, config.ShowColoredTitles, config.EnableAnimation);
+                    var expectedTitle = activeTitle.ToSeString(activeTitle.IsOriginal || !config.DisableQuotes, config.ShowColoredTitles, config.EnableAnimation);
                     if (!displayedTitle.Title.IsSameAs(expectedTitle, out _)) {
                         if (delayError.ElapsedMilliseconds > 1000) {
                             ImGui.Text("Expected Title:");
