@@ -101,7 +101,7 @@ public partial class CustomTitle {
         if (includeColor && Color != null) builder.PushColorRgba(new Vector4(Color.Value, 1));
         if (includeColor && RainbowMode <= 0 && Glow != null) builder.PushEdgeColorRgba(new Vector4(Glow.Value, 1));
 
-        if (includeColor && RainbowMode > 0) {
+        if (includeColor && RainbowMode > 0 && RainbowMode <= RainbowColour.NumColourLists) {
             if (Title.Length > 25) {
                 for (var i = 0; i < Title.Length; i+=2) {
                     var glow = CustomRainbowStyle != null

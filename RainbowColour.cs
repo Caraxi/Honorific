@@ -1,6 +1,7 @@
 global using RGB = (byte R, byte G, byte B);
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
@@ -49,10 +50,12 @@ public static unsafe class RainbowColour {
         return GetColourRGB(style, chrIndex, throttle, animate);
     }
     
+    private static readonly Stopwatch TimeSinceStart = Stopwatch.StartNew();
+    
     public static RGB GetColourRGB(RainbowStyle style, int chrIndex, int throttle, bool animate = true) {
         if (throttle < 1) throttle = 1;
         var rainbowColors = style.Colours;
-        var animationOffset = animate ? Framework.Instance()->FrameCounter : 0;
+        var animationOffset = animate ? TimeSinceStart.ElapsedMilliseconds / 15 : 0;
         var i = (animationOffset/ throttle + (chrIndex * style.ChrMultiplier)) % rainbowColors.GetLength(0);
         return (rainbowColors[i, 0], rainbowColors[i, 1], rainbowColors[i, 2]);
     }
