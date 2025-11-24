@@ -1356,12 +1356,14 @@ public class ConfigWindow : Window {
             }
             
             if ((rainbowMode > 0 || config.IsSupporter) && ImGui.BeginCombo($"##rainbowModeSelect_{label}", rainbowMode <= 0 ? "Default Glow" : "")) {
-                if (ImGui.Selectable("Default Glow", rainbowMode <= 0)) {
+                if (ImGui.Selectable("Default Glow", rainbowMode <= 0, ImGuiSelectableFlags.DontClosePopups)) {
+                    ImGui.CloseCurrentPopup();
                     rainbowMode = 0;
                 }
 
                 for (var i = 1; i <= RainbowColour.NumColourLists; i++) {
-                    if (ImGui.Selectable($"##rainbowMode_{i}", rainbowMode == i)) {
+                    if (ImGui.Selectable($"##rainbowMode_{i}", rainbowMode == i, ImGuiSelectableFlags.DontClosePopups)) {
+                        ImGui.CloseCurrentPopup();
                         rainbowMode = i;
                     }
                     ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
