@@ -24,6 +24,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Honorific.Gradient;
 using Lumina.Excel.Sheets;
 using Lumina.Extensions;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
@@ -64,7 +65,14 @@ public unsafe class Plugin : IDalamudPlugin {
 
         foreach (var (_, worlds) in Config.WorldCharacterDictionary) {
             foreach (var (_, character) in worlds) {
+                character.DefaultTitle.Update();
+                character.DefaultTitle.UpdateWarning();
+                
+                character.Override.Update();
+                character.Override.UpdateWarning();
+                
                 foreach (var t in character.CustomTitles) {
+                    t.Update();
                     t.UpdateWarning();
                 }
             }
@@ -182,8 +190,8 @@ public unsafe class Plugin : IDalamudPlugin {
         if (nameNode == null || titleNode == null) return;
         nameNode->SetText(name.Encode());
         titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles, Config.EnableAnimation).Encode());
-        if (title.RainbowMode > 0 && Config.EnableAnimation) {
-            characterInspectAnimatedTitle = new CustomTitle() { Title = title.Title, IsPrefix = title.IsPrefix, Color = title.Color, RainbowMode = title.RainbowMode, CustomRainbowStyle = title.CustomRainbowStyle, Glow = title.Glow };
+        if (title.GradientColourSet != null && Config.EnableAnimation) {
+            characterInspectAnimatedTitle = new CustomTitle() { Title = title.Title, IsPrefix = title.IsPrefix, Color = title.Color, GradientColourSet = title.GradientColourSet, GradientAnimationStyle = title.GradientAnimationStyle, CustomRainbowStyle = title.CustomRainbowStyle, Glow = title.Glow };
         }
     }
 
@@ -382,7 +390,8 @@ public unsafe class Plugin : IDalamudPlugin {
                     bool? prefix = null;
                     Vector3? color = null;
                     Vector3? glow = null;
-                    var rainbowMode = 0;
+                    int? gradientColourSet = null;
+                    GradientAnimationStyle? gradientAnimationStyle = null;
                     var silent = false;
                     
                     foreach (var a in setArgs) {
@@ -399,7 +408,15 @@ public unsafe class Plugin : IDalamudPlugin {
 
                         var arg = a.ToLower();
 
-                        if (arg.StartsWith('+') && int.TryParse(arg[1..], out rainbowMode)) {
+                        if (arg.StartsWith('+')) {
+                            var s = arg[1..].Split('/', 2);
+                            if (int.TryParse(s[0], out var c)) {
+                                gradientColourSet = c;
+                                if (s.Length == 2 && Enum.TryParse(s[1], out GradientAnimationStyle style)) {
+                                    gradientAnimationStyle = style;
+                                }
+                            }
+                            
                             continue;
                         }
                         
@@ -469,7 +486,8 @@ public unsafe class Plugin : IDalamudPlugin {
                     characterConfig.Override.Glow = glow;
                     characterConfig.Override.IsPrefix = prefix ?? false;
                     characterConfig.Override.Enabled = true;
-                    characterConfig.Override.RainbowMode = rainbowMode;
+                    characterConfig.Override.GradientColourSet = gradientColourSet;
+                    characterConfig.Override.GradientAnimationStyle = gradientAnimationStyle;
 
                     if (!silent) {
                         PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString(animate: false)).Build());

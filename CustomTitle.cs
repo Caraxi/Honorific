@@ -8,6 +8,7 @@ using Dalamud.Interface.Colors;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using Honorific.Gradient;
 using Newtonsoft.Json;
 using SeString = Dalamud.Game.Text.SeStringHandling.SeString;
 using SeStringBuilder = Lumina.Text.SeStringBuilder;
@@ -22,6 +23,8 @@ public class TitleData {
     public Vector3? Color;
     public Vector3? Glow;
     public int RainbowMode;
+    public int? GradientColourSet;
+    public GradientAnimationStyle? GradientAnimationStyle;
 
     public static implicit operator TitleData(CustomTitle title) => new() {
         Title = title.Title,
@@ -29,16 +32,37 @@ public class TitleData {
         Color = title.Color,
         Glow = title.Glow,
         IsOriginal = title.IsOriginal,
-        RainbowMode = title.RainbowMode
+        GradientColourSet = title.GradientColourSet,
+        GradientAnimationStyle = title.GradientAnimationStyle,
+        RainbowMode = GetRainbowMode(title.GradientColourSet, title.GradientAnimationStyle),
     };
+
+    private static int GetRainbowMode(int? titleGradientColourSet, GradientAnimationStyle? titleGradientAnimationStyle) {
+        if (titleGradientColourSet == null) return 0;
+        if (titleGradientAnimationStyle is null or Gradient.GradientAnimationStyle.Static) return 0;
+        if (titleGradientColourSet >= 5) return 0;
+        return ((titleGradientColourSet.Value) * 2) + (titleGradientAnimationStyle == Gradient.GradientAnimationStyle.Wave ? 1 : 2);
+    }
+
     public static implicit operator CustomTitle(TitleData data) => new() {
         Title = data.Title,
         IsPrefix = data.IsPrefix,
         Color = data.Color,
         Glow = data.Glow,
         IsOriginal = data.IsOriginal,
-        RainbowMode = data.RainbowMode,
+        GradientColourSet = data.GradientColourSet ?? GetColourSet(data.RainbowMode),
+        GradientAnimationStyle = data.GradientAnimationStyle ?? (data.GradientColourSet == null ? GetAnimationStyle(data.RainbowMode) : null),
     };
+
+    public static GradientAnimationStyle? GetAnimationStyle(int dataRainbowMode) {
+        if (dataRainbowMode == 0) return null;
+        return (dataRainbowMode - 1) % 2 == 0 ? Gradient.GradientAnimationStyle.Wave : Gradient.GradientAnimationStyle.Pulse;
+    }
+
+    public static int? GetColourSet(int dataRainbowMode) {
+        if (dataRainbowMode == 0) return null;
+        return (dataRainbowMode - 1) / 2;
+    }
 
     public override bool Equals(object? obj) {
         if (obj is not TitleData other) return false;
@@ -47,7 +71,8 @@ public class TitleData {
                && IsOriginal == other.IsOriginal
                && NullableVectorEquals(Color, other.Color)
                && NullableVectorEquals(Glow, other.Glow)
-               && RainbowMode == other.RainbowMode;
+               && GradientColourSet == other.GradientColourSet
+               && GradientAnimationStyle == other.GradientAnimationStyle;
     }
                
     
@@ -57,7 +82,7 @@ public class TitleData {
         return a!.Value == b!.Value;
     }
     
-    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, RainbowMode);
+    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, GradientColourSet, GradientAnimationStyle);
 }
 
 public partial class CustomTitle {
@@ -71,8 +96,11 @@ public partial class CustomTitle {
     public int ConditionParam0;
 
     public int RainbowMode;
-    public RainbowColour.RainbowStyle? CustomRainbowStyle;
-    
+    public int? GradientColourSet;
+    public GradientAnimationStyle? GradientAnimationStyle;
+
+    public bool ShouldSerializeCustomRainbowStyle() => CustomRainbowStyle != null;
+    public GradientStyle? CustomRainbowStyle;
     
 
     public bool ShouldSerializeLocationCondition() => TitleCondition == TitleConditionType.Location;
@@ -92,42 +120,62 @@ public partial class CustomTitle {
         if (Title.Any(char.IsControl)) return false;
         return true;
     }
+    
+    public void Update() {
+        if (RainbowMode >= 0 && GradientColourSet == null) {
+            var style = GradientSystem.GetStyle(RainbowMode);
+            if (style != null) {
+                GradientColourSet = style.ColourSet;
+                GradientAnimationStyle = style.AnimationStyle;
+            }
+        }
+    }
 
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true, bool animate = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
         var builder = new SeStringBuilder();
         if (includeQuotes) builder.Append("《");
-
         if (includeColor && Color != null) builder.PushColorRgba(new Vector4(Color.Value, 1));
-        if (includeColor && RainbowMode <= 0 && Glow != null) builder.PushEdgeColorRgba(new Vector4(Glow.Value, 1));
+        void AppendTitle() {
 
-        if (includeColor && RainbowMode > 0 && RainbowMode <= RainbowColour.NumColourLists) {
-            if (Title.Length > 25) {
-                for (var i = 0; i < Title.Length; i+=2) {
-                    var glow = CustomRainbowStyle != null
-                        ? RainbowColour.GetColourRGB(CustomRainbowStyle, i, 5, animate)
-                        : RainbowColour.GetColourRGB(RainbowMode, i, 5, animate);
-                    builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
-                    builder.Append(Title.Substring(i, Math.Min(2, Title.Length - i)));
-                    builder.PopEdgeColor();
-                }
-            } else {
-                var i = 0;
-                foreach (var c in Title) {
-                    var glow = CustomRainbowStyle != null
-                        ? RainbowColour.GetColourRGB(CustomRainbowStyle, i++, 5, animate)
-                        : RainbowColour.GetColourRGB(RainbowMode, i++, 5, animate);
-                    builder.PushEdgeColorRgba(glow.R, glow.G, glow.B, 255);
-                    builder.AppendChar(c);
-                    builder.PopEdgeColor();
+            if (!includeColor) {
+                builder.Append(Title);
+                return;
+            }
+
+            if (CustomRainbowStyle != null) {
+                CustomRainbowStyle.Apply(builder, Title, animate);
+                return;
+            }
+            
+            if (GradientColourSet != null) {
+                var style = GradientSystem.GetStyle(GradientColourSet.Value, GradientAnimationStyle);
+                if (style != null) {
+                    style.Apply(builder, Title, animate);
+                    return;
                 }
             }
-        } else {
+            
+            if (RainbowMode > 0 && RainbowMode <= GradientSystem.NumColourLists) {
+                var style = GradientSystem.GetStyle(RainbowMode);
+                if (style != null) {
+                    style.Apply(builder, Title, animate);
+                    return;
+                }
+            }
+            
+            if (Glow != null) {
+                builder.PushEdgeColorRgba(new Vector4(Glow.Value, 1));
+                builder.Append(Title);
+                builder.PopEdgeColor();
+                return;
+            }
+
             builder.Append(Title);
         }
-
-
-        if (includeColor && RainbowMode <= 0 && Glow != null) builder.PopEdgeColor();
+        AppendTitle();
+        
+        
         if (includeColor && Color != null) builder.PopColor();
         if (includeQuotes) builder.Append("》");
         return SeString.Parse(builder.GetViewAsSpan());

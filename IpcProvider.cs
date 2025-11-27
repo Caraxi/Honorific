@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Ipc;
+using Dalamud.Utility;
 using Newtonsoft.Json;
 
 namespace Honorific; 
@@ -120,5 +122,22 @@ public static class IpcProvider {
         LocalCharacterTitleChanged = null;
         Ready = null;
         Disposing = null;
+    }
+
+    public static void ShowDebugString() {
+        
+        
+        
+        if (lastTitleData == null) {
+            ImGui.TextWrapped("No Reported Data");
+            return;
+        }
+
+        if (ImGui.TreeNode("Reported IPC Data")) {
+            Util.ShowObject(lastTitleData);
+            ImGui.TreePop();
+        }
+
+        
     }
 }
