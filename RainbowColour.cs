@@ -89,6 +89,9 @@ public static unsafe class RainbowColour {
         public static readonly List<Pair> Pairs = new();
         public static Guid Editing = Guid.Empty;
         public static int Mode = 0;
+        public static int Multi = 1;
+        public static string PreviewText = "Preview Title";
+        public static Vector3 PreviewTextColour = Vector3.Zero;
         
         public class FixedColour(ushort position, uint colour) {
             public ushort Position = position;
@@ -168,7 +171,7 @@ public static unsafe class RainbowColour {
                 bytes[i, 2] = l[i].B;
             }
             
-            GeneratedStyle = new RainbowStyle("Generated Style", bytes, 1);
+            GeneratedStyle = new RainbowStyle("Generated Style", bytes, Multi);
         }
         
         public static uint LerpOpaque(uint start, uint end, float t) {
@@ -223,13 +226,7 @@ public static unsafe class RainbowColour {
 
         public static void Draw() {
             using var _ = ImRaii.PushId("GradientBuilder");
-        
-            ImGui.SetNextItemWidth(200);
-            if (ImGui.SliderInt("Total Steps", ref Length, 32, 512)) {
-                GenerateStyle();
-            }
             
-            ImGui.SameLine();
             if (ImGui.SmallButton("Spread") && FixedColours.Count > 2) {
                 var step = (double)ushort.MaxValue / (FixedColours.Count - 1);
                 var i = 0;
@@ -363,6 +360,87 @@ public static unsafe class RainbowColour {
                         GenerateStyle();
                     }
                 }
+
+                ImGui.Separator();
+                using (ImRaii.Group()) {
+                    ImGui.SetNextItemWidth(200);
+                    if (ImGui.SliderInt("Export Steps", ref Length, 32, 512)) {
+                        GenerateStyle();
+                    }
+
+                    ImGui.SetNextItemWidth(200);
+                    if (ImGui.SliderInt("Preview Multi", ref Multi, 0, 5)) {
+                        GenerateStyle();
+                    }
+            
+                    ImGui.SetNextItemWidth(200);
+                    if (ImGui.InputText("Preview Text", ref PreviewText, 32)) {
+                        GenerateStyle();
+                    }
+                
+                    ImGui.SetNextItemWidth(200);
+                    if (ImGui.ColorEdit3("Preview Colour", ref PreviewTextColour, ImGuiColorEditFlags.NoInputs)) {
+                        GenerateStyle();
+                    }
+                }
+                
+                if (GeneratedStyle != null) {
+                    var previewTitle = new CustomTitle() {
+                        Title = PreviewText, RainbowMode = 1, CustomRainbowStyle = GeneratedStyle,
+                        Color = PreviewTextColour
+                    };
+                    
+                    ImGui.SameLine();
+                    ImGui.Dummy(new Vector2(48));
+                    ImGui.SameLine();
+                    using (ImRaii.Group()) {
+                        ImGuiHelpers.SeStringWrapped(previewTitle.ToSeString(false).Encode(),
+                            new SeStringDrawParams
+                                { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, FontSize = 32 });
+                    }
+
+                    if (ImGui.Button("Export Style")) {
+                        var bytes = GeneratedStyle.Colours.Cast<byte>().ToArray();
+                        var b64 = Convert.ToBase64String(bytes);
+                        ImGui.SetClipboardText(b64);
+                    }
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Import Style")) {
+                        try {
+                            var s = new RainbowStyle("Import", ImGui.GetClipboardText(), 1);
+                            FixedColours.Clear();
+                            Length = s.Colours.GetLength(0);
+                            for (var i = 0; i < Length; i++) {
+                                var abgr = ((uint)0xFF << 24) | ((uint)s.Colours[i, 2] << 16) | ((uint)s.Colours[i,1] << 8)  | s.Colours[i,0];
+                                FixedColours.Add(new FixedColour((ushort) MathF.Round(i / (float)Length * ushort.MaxValue) , abgr));
+                            }
+                                
+                                
+                            
+                            UpdatePairs();
+                            GenerateStyle();
+                        } catch {
+                            //
+                        }
+                    }
+                    
+                    var eid = PluginService.Objects.LocalPlayer?.EntityId;
+                    if (eid != null) {
+                        if (Plugin.IpcAssignedTitles.ContainsKey(eid.Value)) {
+                                        
+                            if (ImGui.Button("Clear Preview")) {
+                                Plugin.IpcAssignedTitles.Remove(eid.Value);
+                            }
+                        } else {
+                            if (ImGui.Button("Preview on Self")) {
+                                Plugin.IpcAssignedTitles[eid.Value] = previewTitle;
+                            }
+                        }
+                    }
+                } else {
+                    GenerateStyle();
+                }
             }
             
             ImGui.SameLine();
@@ -383,23 +461,6 @@ public static unsafe class RainbowColour {
                     ImGui.SameLine();
                     ImGui.Text($"@ {MathF.Round(a.Position * 100 / (float)ushort.MaxValue, 1)}%");
                 }
-            }
-            
-            ImGui.Separator();
-
-            if (GeneratedStyle != null) {
-                var previewTitle = new CustomTitle() { Title = "Preview Title", RainbowMode = 1, CustomRainbowStyle = GeneratedStyle};
-                ImGuiHelpers.SeStringWrapped(previewTitle.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFF000000, WrapWidth = float.MaxValue, FontSize = 24});
-                ImGuiHelpers.SeStringWrapped(previewTitle.ToSeString(false).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, FontSize = 24});
-
-                if (ImGui.Button("Export Style")) {
-                    var bytes = GeneratedStyle.Colours.Cast<byte>().ToArray();
-                    var b64 = Convert.ToBase64String(bytes);
-                    ImGui.SetClipboardText(b64);
-                }
-                
-            } else {
-                GenerateStyle();
             }
         }
         
