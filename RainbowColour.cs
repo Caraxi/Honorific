@@ -307,18 +307,13 @@ public static unsafe class RainbowColour {
                     var posShort = (ushort)(pos);
                     
                     if (pos is 0 or ushort.MaxValue || FixedColours.All(p => p.Position != posShort)) {
-                        
                         var pair = Pairs.Find(p => p.Begin.Position < pos &&  p.End.Position > pos);
-
-                        var c = 0U;
                         if (pair != null) {
                             var pairPos = (pos - pair.Begin.Position) / (pair.End.Position - pair.Begin.Position);
                             var newColour = pair.ColourAt(pairPos);
                             FixedColours.Add(newColour);
                             Editing = newColour.Guid;
                         }
-                        
-                        
                     }
                 }
             }

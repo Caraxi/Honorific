@@ -56,7 +56,7 @@ public static class IpcProvider {
 
         GetLocalCharacterTitle = PluginService.PluginInterface.GetIpcProvider<string>($"{NameSpace}.{nameof(GetLocalCharacterTitle)}");
         GetLocalCharacterTitle.RegisterFunc(() => {
-            var player = PluginService.ClientState.LocalPlayer;
+            var player = PluginService.Objects.LocalPlayer;
             if (player == null) return string.Empty;
             if (!plugin.TryGetTitle(player, out var title) || title == null) return string.Empty;
             return JsonConvert.SerializeObject((TitleData)title);
@@ -81,11 +81,11 @@ public static class IpcProvider {
         
         SetLocalPlayerIdentity = PluginService.PluginInterface.GetIpcProvider<string?, uint, object>($"{NameSpace}.{nameof(SetLocalPlayerIdentity)}");
         SetLocalPlayerIdentity.RegisterAction((name, world) => {
-            if (PluginService.ClientState.LocalContentId == 0) return;
+            if (PluginService.PlayerState.ContentId == 0) return;
             if (string.IsNullOrWhiteSpace(name)) {
-                plugin.Config.IdentifyAs.Remove(PluginService.ClientState.LocalContentId);
+                plugin.Config.IdentifyAs.Remove(PluginService.PlayerState.ContentId);
             } else {
-                plugin.Config.IdentifyAs[PluginService.ClientState.LocalContentId] = (name, world);
+                plugin.Config.IdentifyAs[PluginService.PlayerState.ContentId] = (name, world);
             }
         });
     }
