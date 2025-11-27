@@ -1316,6 +1316,61 @@ public class ConfigWindow : Window {
         return modified;
     }
 
+    private bool DrawGradientPicker(CustomTitle title, ref int rainbowMode) {
+        var modified = false;
+        var w = ImGui.CalcItemWidth();
+        if (ImGui.BeginCombo($"##rainbowModeSelect", rainbowMode <= 0 ? "Default Glow" : "", ImGuiComboFlags.HeightLargest)) {
+            
+
+            if (ImGui.Selectable("Default Glow", rainbowMode <= 0, ImGuiSelectableFlags.DontClosePopups)) {
+                ImGui.CloseCurrentPopup();
+                rainbowMode = 0;
+            }
+
+            if (ImGui.BeginTabBar("gradientAnimations")) {
+
+                void DrawTab(ref int rainbowMode, Func<RainbowColour.RainbowStyle, bool> predicate) {
+                    
+                    if (ImGui.BeginChild("gradientPicker", new Vector2(w))) {
+                        for (var i = 1; i <= RainbowColour.NumColourLists; i++) {
+                            var style = RainbowColour.GetStyle(i);
+                            if (style == null || !predicate.Invoke(style)) continue;
+                            
+                            if (ImGui.Selectable($"##rainbowMode_{i}", rainbowMode == i, ImGuiSelectableFlags.DontClosePopups)) {
+                                ImGui.CloseCurrentPopup();
+                                rainbowMode = i;
+                            }
+                            ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                            var dl = ImGui.GetWindowDrawList();
+                            var t = new CustomTitle() { Color = title.Color, RainbowMode = i, Title = RainbowColour.GetName(i) };
+                
+                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                            ImGui.NewLine();
+                        }
+                    }
+                    ImGui.EndChild();
+                    ImGui.EndTabItem();
+                }
+                
+                if (ImGui.BeginTabItem("Wave")) DrawTab(ref rainbowMode, s => s.AnimationStyle == 1);
+                if (ImGui.BeginTabItem("Pulse")) DrawTab(ref rainbowMode, s => s.AnimationStyle == 0);
+                
+                ImGui.EndTabBar();
+            }
+            
+            ImGui.EndCombo();
+        }
+
+        if (rainbowMode > 0) {
+            var rainbowModeTitle = new CustomTitle() { Color = title.Color, RainbowMode = rainbowMode, Title = RainbowColour.GetName(rainbowMode) };
+            ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                
+            ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
+        }
+
+        return modified;
+    }
+    
     private bool DrawGlowPicker(string label, CustomTitle title, ref Vector3? color, ref int rainbowMode, bool showArrow = true) {
         using var group = ImRaii.Group();
         var modified = false;
@@ -1354,34 +1409,9 @@ public class ConfigWindow : Window {
             if (ImGui.IsWindowAppearing()) {
                 editingColour = color ?? Vector3.One;
             }
-            
-            if ((rainbowMode > 0 || config.IsSupporter) && ImGui.BeginCombo($"##rainbowModeSelect_{label}", rainbowMode <= 0 ? "Default Glow" : "")) {
-                if (ImGui.Selectable("Default Glow", rainbowMode <= 0, ImGuiSelectableFlags.DontClosePopups)) {
-                    ImGui.CloseCurrentPopup();
-                    rainbowMode = 0;
-                }
 
-                for (var i = 1; i <= RainbowColour.NumColourLists; i++) {
-                    if (ImGui.Selectable($"##rainbowMode_{i}", rainbowMode == i, ImGuiSelectableFlags.DontClosePopups)) {
-                        ImGui.CloseCurrentPopup();
-                        rainbowMode = i;
-                    }
-                    ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
-                    var dl = ImGui.GetWindowDrawList();
-                    var t = new CustomTitle() { Color = title.Color, RainbowMode = i, Title = RainbowColour.GetName(i) };
-                    
-                    ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
-                    ImGui.NewLine();
-                }
-                
-                ImGui.EndCombo();
-            }
-
-            if (rainbowMode > 0) {
-                var rainbowModeTitle = new CustomTitle() { Color = title.Color, RainbowMode = rainbowMode, Title = RainbowColour.GetName(rainbowMode) };
-                ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
-                
-                ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
+            if ((rainbowMode > 0 || config.IsSupporter)) {
+                modified |= DrawGradientPicker(title, ref rainbowMode);
             }
            
             
