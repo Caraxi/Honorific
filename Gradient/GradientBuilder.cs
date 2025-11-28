@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
+using Newtonsoft.Json;
 
 namespace Honorific.Gradient;
 
@@ -147,7 +149,7 @@ public static class GradientBuilder {
     }
 
     public static RGB UintToRGB(uint color) {
-        return ((byte)(color & 0xFF), (byte)((color >> 8) & 0xFF), (byte)((color >> 16) & 0xFF));
+        return new((byte)(color & 0xFF), (byte)((color >> 8) & 0xFF), (byte)((color >> 16) & 0xFF));
     }
 
     public static void Draw() {
@@ -333,21 +335,56 @@ public static class GradientBuilder {
                             { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, FontSize = 32 });
                 }
 
-                if (ImGui.Button("Export Style")) {
-                    var bytes = GeneratedStyle.Colours.Cast<byte>().ToArray();
-                    var b64 = Convert.ToBase64String(bytes);
-                    ImGui.SetClipboardText(b64);
+
+                
+                
+                if (ImGui.Button("Export JSON")) {
+                    var data = new {
+                        Colours = FixedColours.GroupBy(c => c.Position).Where(g => g.Key != ushort.MaxValue).OrderBy(g => g.Key).ToDictionary(g => g.Key.ToString("00000"), c => string.Join(',', c.Select(colour => UintToRGB(colour.Colour).ToHexColorCode()))),
+                        Mode
+                    };
+
+                    var json = JsonConvert.SerializeObject(data, Formatting.Indented);
+                    ImGui.SetClipboardText(json);
                 }
 
                 ImGui.SameLine();
+                
                 if (ImGui.Button("Import Style")) {
                     try {
-                        var s = new GradientStyle("Import", ImGui.GetClipboardText(), GradientAnimationStyle.Wave);
-                        FixedColours.Clear();
-                        Length = s.Colours.GetLength(0);
-                        for (var i = 0; i < Length; i++) {
-                            var abgr = ((uint)0xFF << 24) | ((uint)s.Colours[i, 2] << 16) | ((uint)s.Colours[i,1] << 8)  | s.Colours[i,0];
-                            FixedColours.Add(new FixedColour((ushort) MathF.Round(i / (float)Length * ushort.MaxValue) , abgr));
+                        var clipboard = ImGui.GetClipboardText().Trim();
+                        if (clipboard.StartsWith('{') && clipboard.EndsWith('}')) {
+                            var data = new {
+                                Colours = FixedColours.GroupBy(c => c.Position).Where(g => g.Key != ushort.MaxValue).OrderBy(g => g.Key).ToDictionary(g => g.Key.ToString("00000"), c => string.Join(',', c.Select(colour => UintToRGB(colour.Colour).ToHexColorCode()))),
+                                Mode
+                            };
+                            
+                            data = JsonConvert.DeserializeAnonymousType(clipboard, data);
+                            if (data != null) {
+                                Mode = data.Mode;
+                                FixedColours.Clear();
+                                foreach (var (positionStr, coloursStr) in data.Colours) {
+                                    if (!ushort.TryParse(positionStr, out var position)) continue;
+                                    if (position == ushort.MaxValue) continue;
+                                    var colours = coloursStr.Split(',').Select(RGB.FromHexColourCode);
+
+                                    foreach (var colour in colours) {
+                                        if (colour == null) continue;
+                                        FixedColours.Add(new FixedColour(position, colour.ToUInt()));
+                                        if (position == 0) {
+                                            FixedColours.Add(new FixedColour(ushort.MaxValue, colour.ToUInt()));
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            var s = new GradientStyle("Import", ImGui.GetClipboardText(), GradientAnimationStyle.Wave);
+                            FixedColours.Clear();
+                            Length = s.Colours.GetLength(0);
+                            for (var i = 0; i < Length; i++) {
+                                var abgr = ((uint)0xFF << 24) | ((uint)s.Colours[i, 2] << 16) | ((uint)s.Colours[i,1] << 8)  | s.Colours[i,0];
+                                FixedColours.Add(new FixedColour((ushort) MathF.Round(i / (float)Length * ushort.MaxValue) , abgr));
+                            }
                         }
                         
                         UpdatePairs();
@@ -355,6 +392,12 @@ public static class GradientBuilder {
                     } catch {
                         //
                     }
+                }
+                
+                if (ImGui.GetIO().KeyShift && ImGui.Button("Export for Production")) {
+                    var bytes = GeneratedStyle.Colours.Cast<byte>().ToArray();
+                    var b64 = Convert.ToBase64String(bytes);
+                    ImGui.SetClipboardText(b64);
                 }
                 
                 var eid = PluginService.Objects.LocalPlayer?.EntityId;

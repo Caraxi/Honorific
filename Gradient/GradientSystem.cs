@@ -1,9 +1,43 @@
-global using RGB = (byte R, byte G, byte B);
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+using Honorific.Gradient;
 
 namespace Honorific.Gradient;
+
+public record RGB(byte R, byte G, byte B) {
+    public string ToHexColorCode() => $"#{R:X2}{G:X2}{B:X2}";
+
+    public static RGB? FromHexColourCode(string hexColourCode) {
+        if (string.IsNullOrWhiteSpace(hexColourCode)) return null;
+        var hex = hexColourCode.Trim();
+        if (hex.StartsWith('#')) hex = hex[1..];
+
+        if (hex.Length == 3) {
+            var r = new string(hex[0], 2);
+            var g = new string(hex[1], 2);
+            var b = new string(hex[2], 2);
+            return new RGB (
+                Convert.ToByte(r, 16),
+                Convert.ToByte(g, 16),
+                Convert.ToByte(b, 16)
+            );
+        }
+
+        // Standard #RRGGBB
+        if (hex.Length == 6) {
+            var r = Convert.ToByte(hex.Substring(0, 2), 16);
+            var g = Convert.ToByte(hex.Substring(2, 2), 16);
+            var b = Convert.ToByte(hex.Substring(4, 2), 16);
+            return new RGB(r, g, b);
+        }
+
+        return null;
+    }
+
+    public uint ToUInt(byte alpha = 255) => ((uint)alpha << 24) | ((uint)B << 16) | ((uint)G<< 8)  | R;
+}
 
 public static class GradientSystem {
     private static readonly List<GradientStyle> ColourLists = [];
@@ -41,7 +75,7 @@ public static class GradientSystem {
     public static int NumColourSets => ColourSets.Count;
 
     public static string GetName(int i) => i > ColourLists.Count ? "Invalid" : ColourLists[i - 1].Name;
-    public static readonly RGB White = (255, 255, 255);
+    public static readonly RGB White = new(255, 255, 255);
 
     public static RGB GetColourRGB(int rainbowMode, int chrIndex, int throttle, bool animate = true) {
         if (rainbowMode == 0 || rainbowMode > ColourLists.Count) return White;
@@ -57,7 +91,7 @@ public static class GradientSystem {
         var animationOffset = animate ? TimeSinceStart.ElapsedMilliseconds / 15 : 0;
         var m = style.AnimationStyle == GradientAnimationStyle.Pulse ? 0 : 1;
         var i = (animationOffset/ throttle + (chrIndex * m)) % rainbowColors.GetLength(0);
-        return (rainbowColors[i, 0], rainbowColors[i, 1], rainbowColors[i, 2]);
+        return new(rainbowColors[i, 0], rainbowColors[i, 1], rainbowColors[i, 2]);
     }
 
     public static Vector3 GetColourVec3(int rainbowMode, int offset, int throttle) {
