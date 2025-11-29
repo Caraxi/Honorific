@@ -16,7 +16,8 @@ using SeStringBuilder = Lumina.Text.SeStringBuilder;
 namespace Honorific;
 
 public class TitleData {
-    
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GradientStyle> _gradientStyleCache = new();
+
     public string? Title = string.Empty;
     public bool IsPrefix;
     public bool IsOriginal;
@@ -25,17 +26,37 @@ public class TitleData {
     public int RainbowMode;
     public int? GradientColourSet;
     public GradientAnimationStyle? GradientAnimationStyle;
+    public string? GradientBase64;
 
-    public static implicit operator TitleData(CustomTitle title) => new() {
-        Title = title.Title,
-        IsPrefix = title.IsPrefix,
-        Color = title.Color,
-        Glow = title.Glow,
-        IsOriginal = title.IsOriginal,
-        GradientColourSet = title.GradientColourSet,
-        GradientAnimationStyle = title.GradientAnimationStyle,
-        RainbowMode = GetRainbowMode(title.GradientColourSet, title.GradientAnimationStyle),
-    };
+    public static implicit operator TitleData(CustomTitle title) {
+        var data = new TitleData {
+            Title = title.Title,
+            IsPrefix = title.IsPrefix,
+            Color = title.Color,
+            Glow = title.Glow,
+            IsOriginal = title.IsOriginal,
+            GradientColourSet = title.GradientColourSet,
+            GradientAnimationStyle = title.GradientAnimationStyle,
+            RainbowMode = GetRainbowMode(title.GradientColourSet, title.GradientAnimationStyle),
+        };
+
+        // Include base64 gradient data if a gradient is used
+        if (title.CustomGradientStyle != null) {
+            data.GradientBase64 = title.CustomGradientStyle.Encode();
+        } else if (title.GradientColourSet != null && title.GradientAnimationStyle != null) {
+            var style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
+            if (style != null) {
+                data.GradientBase64 = style.Encode();
+            }
+        } else if (title.RainbowMode > 0) {
+            var style = GradientSystem.GetStyle(title.RainbowMode);
+            if (style != null) {
+                data.GradientBase64 = style.Encode();
+            }
+        }
+
+        return data;
+    }
 
     private static int GetRainbowMode(int? titleGradientColourSet, GradientAnimationStyle? titleGradientAnimationStyle) {
         if (titleGradientColourSet == null) return 0;
@@ -44,15 +65,31 @@ public class TitleData {
         return ((titleGradientColourSet.Value) * 2) + (titleGradientAnimationStyle == Gradient.GradientAnimationStyle.Wave ? 1 : 2);
     }
 
-    public static implicit operator CustomTitle(TitleData data) => new() {
-        Title = data.Title,
-        IsPrefix = data.IsPrefix,
-        Color = data.Color,
-        Glow = data.Glow,
-        IsOriginal = data.IsOriginal,
-        GradientColourSet = data.GradientColourSet ?? GetColourSet(data.RainbowMode),
-        GradientAnimationStyle = data.GradientAnimationStyle ?? (data.GradientColourSet == null ? GetAnimationStyle(data.RainbowMode) : null),
-    };
+    public static implicit operator CustomTitle(TitleData data) {
+        var title = new CustomTitle {
+            Title = data.Title,
+            IsPrefix = data.IsPrefix,
+            Color = data.Color,
+            Glow = data.Glow,
+            IsOriginal = data.IsOriginal,
+            GradientColourSet = data.GradientColourSet ?? GetColourSet(data.RainbowMode),
+            GradientAnimationStyle = data.GradientAnimationStyle ?? (data.GradientColourSet == null ? GetAnimationStyle(data.RainbowMode) : null),
+        };
+
+        // If base64 gradient data is provided, reconstruct the gradient style using cache
+        if (!string.IsNullOrEmpty(data.GradientBase64) && data.GradientAnimationStyle != null) {
+            try {
+                var cacheKey = $"{data.GradientBase64}:{data.GradientAnimationStyle.Value}";
+                title.CustomGradientStyle = _gradientStyleCache.GetOrAdd(cacheKey, key => {
+                    return new GradientStyle("IPC Gradient", data.GradientBase64, data.GradientAnimationStyle.Value);
+                });
+            } catch {
+                // If base64 decoding fails, fall back to the ID-based approach
+            }
+        }
+
+        return title;
+    }
 
     public static GradientAnimationStyle? GetAnimationStyle(int dataRainbowMode) {
         if (dataRainbowMode == 0) return null;
@@ -72,7 +109,8 @@ public class TitleData {
                && NullableVectorEquals(Color, other.Color)
                && NullableVectorEquals(Glow, other.Glow)
                && GradientColourSet == other.GradientColourSet
-               && GradientAnimationStyle == other.GradientAnimationStyle;
+               && GradientAnimationStyle == other.GradientAnimationStyle
+               && GradientBase64 == other.GradientBase64;
     }
                
     
@@ -82,7 +120,7 @@ public class TitleData {
         return a!.Value == b!.Value;
     }
     
-    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, GradientColourSet, GradientAnimationStyle);
+    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, GradientColourSet, GradientAnimationStyle, GradientBase64);
 }
 
 public partial class CustomTitle {
@@ -99,8 +137,11 @@ public partial class CustomTitle {
     public int? GradientColourSet;
     public GradientAnimationStyle? GradientAnimationStyle;
 
-    public bool ShouldSerializeCustomRainbowStyle() => CustomRainbowStyle != null;
-    public GradientStyle? CustomRainbowStyle;
+    public Guid? CustomGradientId;
+
+    public bool ShouldSerializeCustomGradientStyle() => false;
+    [Newtonsoft.Json.JsonIgnore]
+    public GradientStyle? CustomGradientStyle;
     
 
     public bool ShouldSerializeLocationCondition() => TitleCondition == TitleConditionType.Location;
@@ -131,6 +172,15 @@ public partial class CustomTitle {
         }
     }
 
+    public void ReconstructCustomGradient(PluginConfig config) {
+        if (CustomGradientId != null && CustomGradientStyle == null) {
+            var customGradient = config.CustomGradients.FirstOrDefault(g => g.Id == CustomGradientId);
+            if (customGradient != null && GradientAnimationStyle != null) {
+                CustomGradientStyle = customGradient.ToGradientStyle(GradientAnimationStyle.Value);
+            }
+        }
+    }
+
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true, bool animate = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
         var builder = new SeStringBuilder();
@@ -143,8 +193,8 @@ public partial class CustomTitle {
                 return;
             }
 
-            if (CustomRainbowStyle != null) {
-                CustomRainbowStyle.Apply(builder, Title, animate);
+            if (CustomGradientStyle != null) {
+                CustomGradientStyle.Apply(builder, Title, animate);
                 return;
             }
             

@@ -589,9 +589,9 @@ public class ConfigWindow : Window {
 
 
                                 if (ImGui.TreeNode("Command Generator")) {
-                                    
+
                                     var b = false;
-                                
+
                                     if (ImGui.BeginTable("CommandGeneratorTitleTable", 5)) {
                                         var t = forcedTitleCommandGeneratorTitle;
                                         ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
@@ -615,7 +615,13 @@ public class ConfigWindow : Window {
                                                 c += $"{(byte)(t.Color.Value.Y * 255):X2}";
                                                 c += $"{(byte)(t.Color.Value.Z * 255):X2}";
 
-                                                if (t.GradientColourSet != null) {
+                                                if (t.CustomGradientId != null) {
+                                                    // Find the custom gradient by ID
+                                                    var customGradient = config.CustomGradients.FirstOrDefault(g => g.Id == t.CustomGradientId);
+                                                    if (customGradient != null) {
+                                                        c += $" | +{customGradient.Name}/{t.GradientAnimationStyle??GradientAnimationStyle.Static}";
+                                                    }
+                                                } else if (t.GradientColourSet != null) {
                                                     c += $" | +{t.GradientColourSet}/{t.GradientAnimationStyle??GradientAnimationStyle.Static}";
                                                 } else if (t.Glow != null) {
                                                     c += " | #";
@@ -1333,57 +1339,123 @@ public class ConfigWindow : Window {
     private bool DrawGradientPicker(CustomTitle title) {
         var modified = false;
         var w = ImGui.CalcItemWidth();
-        if (ImGui.BeginCombo($"##rainbowModeSelect", title.GradientColourSet == null? "Default Glow" : "", ImGuiComboFlags.HeightLargest)) {
+        if (ImGui.BeginCombo($"##rainbowModeSelect", (title.GradientColourSet == null && title.CustomGradientStyle == null) ? "Default Glow" : "", ImGuiComboFlags.HeightLargest)) {
             
 
-            if (ImGui.Selectable("Default Glow", title.GradientColourSet == null, ImGuiSelectableFlags.DontClosePopups)) {
+            if (ImGui.Selectable("Default Glow", title.GradientColourSet == null && title.CustomGradientStyle == null, ImGuiSelectableFlags.DontClosePopups)) {
                 ImGui.CloseCurrentPopup();
                 title.RainbowMode = 0;
                 title.GradientColourSet = null;
                 title.GradientAnimationStyle = null;
+                title.CustomGradientStyle = null;
+                title.CustomGradientId = null;
             }
 
             if (ImGui.BeginTabBar("gradientAnimations")) {
 
                 void DrawTab(GradientAnimationStyle animationStyle) {
-                    
+
                     if (ImGui.BeginChild("gradientPicker", new Vector2(w))) {
+                        // Built-in gradients
                         for (var i = 0; i < GradientSystem.NumColourSets; i++) {
                             var style = GradientSystem.GetStyle(i, animationStyle);
                             if (style == null || style.AnimationStyle != animationStyle) continue;
-                            
-                            if (ImGui.Selectable($"##rainbowMode_{i}", title.GradientColourSet == i && title.GradientAnimationStyle == animationStyle, ImGuiSelectableFlags.DontClosePopups)) {
+
+                            if (ImGui.Selectable($"##rainbowMode_{i}", title.GradientColourSet == i && title.GradientAnimationStyle == animationStyle && title.CustomGradientStyle == null, ImGuiSelectableFlags.DontClosePopups)) {
                                 ImGui.CloseCurrentPopup();
                                 title.GradientColourSet = style.ColourSet;
                                 title.GradientAnimationStyle = style.AnimationStyle;
+                                title.CustomGradientStyle = null;
+                                title.CustomGradientId = null;
                             }
                             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
                             var dl = ImGui.GetWindowDrawList();
                             var t = new CustomTitle() { Color = title.Color, Title = style.Name, GradientColourSet = i, GradientAnimationStyle = animationStyle};
-                
+
                             ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
                             ImGui.NewLine();
+                        }
+
+                        // Custom gradients
+                        if (config.CustomGradients.Count > 0) {
+                            ImGui.Separator();
+                            ImGui.TextDisabled("Custom Gradients");
+                            ImGui.Separator();
+
+                            for (var i = 0; i < config.CustomGradients.Count; i++) {
+                                var customGradient = config.CustomGradients[i];
+                                var customStyle = customGradient.ToGradientStyle(animationStyle);
+                                if (customStyle == null) continue;
+
+                                var isSelected = title.CustomGradientId == customGradient.Id &&
+                                                title.GradientAnimationStyle == animationStyle;
+
+                                if (ImGui.Selectable($"##customGradient_{customGradient.Id}", isSelected, ImGuiSelectableFlags.DontClosePopups)) {
+                                    ImGui.CloseCurrentPopup();
+                                    title.CustomGradientStyle = customStyle;
+                                    title.CustomGradientId = customGradient.Id;
+                                    title.GradientColourSet = null;
+                                    title.GradientAnimationStyle = animationStyle;
+                                }
+
+                                if (ImGui.BeginPopupContextItem($"##customGradientContext_{customGradient.Id}")) {
+                                    if (ImGui.MenuItem("Edit")) {
+                                        plugin.CustomGradientEditorWindow.OpenForEdit(customGradient);
+                                        ImGui.CloseCurrentPopup();
+                                    }
+                                    if (ImGui.MenuItem("Delete")) {
+                                        config.CustomGradients.Remove(customGradient);
+                                        PluginService.PluginInterface.SavePluginConfig(config);
+                                        ImGui.CloseCurrentPopup();
+                                    }
+                                    ImGui.EndPopup();
+                                }
+
+                                ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
+                                var dl = ImGui.GetWindowDrawList();
+                                var t = new CustomTitle() { Color = title.Color, Title = customStyle.Name, CustomGradientStyle = customStyle };
+
+                                ImGuiHelpers.SeStringWrapped(t.ToSeString(false, true, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl});
+                                ImGui.NewLine();
+                            }
+                        }
+
+                        // Add new custom gradient button
+                        ImGui.Separator();
+                        if (ImGui.Button("Create Custom Gradient", new Vector2(-1, 0))) {
+                            plugin.CustomGradientEditorWindow.OpenForNew();
+                            ImGui.CloseCurrentPopup();
                         }
                     }
                     ImGui.EndChild();
                     ImGui.EndTabItem();
                 }
-                
+
                 if (ImGui.BeginTabItem("Wave")) DrawTab(GradientAnimationStyle.Wave);
                 if (ImGui.BeginTabItem("Pulse")) DrawTab(GradientAnimationStyle.Pulse);
                 if (ImGui.BeginTabItem("Static")) DrawTab(GradientAnimationStyle.Static);
-                
+
                 ImGui.EndTabBar();
             }
             
             ImGui.EndCombo();
         }
 
-        if (title.GradientColourSet != null) {
-            var style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
-            var rainbowModeTitle = new CustomTitle() { Color = title.Color, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
+        if (title.GradientColourSet != null || title.CustomGradientStyle != null) {
+            string displayName;
+            CustomTitle rainbowModeTitle;
+
+            if (title.CustomGradientStyle != null) {
+                displayName = title.CustomGradientStyle.Name;
+                rainbowModeTitle = new CustomTitle() { Color = title.Color, CustomGradientStyle = title.CustomGradientStyle, Title = displayName };
+            } else {
+                var style = GradientSystem.GetStyle(title.GradientColourSet!.Value, title.GradientAnimationStyle);
+                displayName = style?.Name ?? "Invalid Style";
+                rainbowModeTitle = new CustomTitle() { Color = title.Color, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = displayName };
+            }
+
             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
-                
+
             ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList()});
         }
 
@@ -1395,18 +1467,28 @@ public class ConfigWindow : Window {
         var modified = false;
         bool comboOpen;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
-        if (title.GradientColourSet != null) {
-            
-            var style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
+
+        // Check if we have a gradient (built-in or custom)
+        var hasGradient = title.GradientColourSet != null || title.CustomGradientStyle != null;
+
+        if (hasGradient) {
+            // Get the gradient style for preview
+            GradientStyle? style = null;
+            if (title.CustomGradientStyle != null) {
+                style = title.CustomGradientStyle;
+            } else if (title.GradientColourSet != null) {
+                style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
+            }
+
             var rainbowColor = style == null ? Vector4.One : new Vector4(GradientSystem.GetColourVec3(style, 0, 3), 1);
 
             ImGui.PushStyleColor(ImGuiCol.FrameBg, rainbowColor);
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive, rainbowColor);
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, rainbowColor);
             comboOpen = ImGui.BeginCombo($"##color_{ImGui.GetID(label)}", " ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
-            
+
             ImGui.PopStyleColor(3);
-            
+
         } else if (color == null) {
             ImGui.PushStyleColor(ImGuiCol.FrameBg, 0xFFFFFFFF);
             ImGui.PushStyleColor(ImGuiCol.FrameBgActive, 0xFFFFFFFF);
@@ -1423,19 +1505,19 @@ public class ConfigWindow : Window {
             comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
             ImGui.PopStyleColor(3);
         }
-        
+
         if (comboOpen) {
-            
+
             if (ImGui.IsWindowAppearing()) {
                 editingColour = color ?? Vector3.One;
             }
 
-            if ((title.GradientColourSet != null || config.IsSupporter)) {
+            if (hasGradient || config.IsSupporter) {
                 modified |= DrawGradientPicker(title);
             }
-           
-            
-            if (title.GradientColourSet == null) {
+
+
+            if (!hasGradient) {
                 if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
                     color = null;
                     modified = true;
@@ -1459,9 +1541,9 @@ public class ConfigWindow : Window {
                         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
                     }
                 }
-                
+
                 ImGui.SameLine();
-                
+
                 if (ImGui.ColorButton("Confirm", new Vector4(editingColour, 1), ImGuiColorEditFlags.NoTooltip, new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetItemRectSize().Y))) {
                     color = editingColour;
                     modified = true;
@@ -1473,7 +1555,7 @@ public class ConfigWindow : Window {
                     dl.AddRectFilled(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), 0x33333333);
                     ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
                 }
-                
+
                 var textSize = ImGui.CalcTextSize("Confirm");
                 dl.AddText(ImGui.GetItemRectMin() + size / 2 - textSize / 2, ImGui.ColorConvertFloat4ToU32(new Vector4(editingColour, 1)) ^ 0x00FFFFFF, "Confirm");
                 ImGui.ColorPicker3($"##ColorPick", ref editingColour, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview);

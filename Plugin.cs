@@ -36,8 +36,9 @@ namespace Honorific;
 public unsafe class Plugin : IDalamudPlugin {
     public const byte MaxTitleLength = 32;
     public const string Name = "Honorific";
-    
+
     public PluginConfig Config { get; }
+    public CustomGradientEditorWindow CustomGradientEditorWindow => customGradientEditorWindow;
     
     [Signature("40 53 55 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
     private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
@@ -49,6 +50,7 @@ public unsafe class Plugin : IDalamudPlugin {
     private delegate void* UpdateNameplateNpcDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex);
     
     private readonly ConfigWindow configWindow;
+    private readonly CustomGradientEditorWindow customGradientEditorWindow;
     private readonly WindowSystem windowSystem;
     
     private readonly Stopwatch runTime = Stopwatch.StartNew();
@@ -67,13 +69,16 @@ public unsafe class Plugin : IDalamudPlugin {
             foreach (var (_, character) in worlds) {
                 character.DefaultTitle.Update();
                 character.DefaultTitle.UpdateWarning();
-                
+                character.DefaultTitle.ReconstructCustomGradient(Config);
+
                 character.Override.Update();
                 character.Override.UpdateWarning();
-                
+                character.Override.ReconstructCustomGradient(Config);
+
                 foreach (var t in character.CustomTitles) {
                     t.Update();
                     t.UpdateWarning();
+                    t.ReconstructCustomGradient(Config);
                 }
             }
         }
@@ -84,7 +89,9 @@ public unsafe class Plugin : IDalamudPlugin {
             IsOpen = Config.DebugOpenOnStatup
             #endif
         };
+        customGradientEditorWindow = new CustomGradientEditorWindow(this, Config);
         windowSystem.AddWindow(configWindow);
+        windowSystem.AddWindow(customGradientEditorWindow);
         
         PluginService.HookProvider.InitializeFromAttributes(this);
         PluginService.AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "CharacterInspect", RefreshCharacterInspect);
@@ -190,8 +197,8 @@ public unsafe class Plugin : IDalamudPlugin {
         if (nameNode == null || titleNode == null) return;
         nameNode->SetText(name.Encode());
         titleNode->SetText(title.ToSeString(false, Config.ShowColoredTitles, Config.EnableAnimation).Encode());
-        if (title.GradientColourSet != null && Config.EnableAnimation) {
-            characterInspectAnimatedTitle = new CustomTitle() { Title = title.Title, IsPrefix = title.IsPrefix, Color = title.Color, GradientColourSet = title.GradientColourSet, GradientAnimationStyle = title.GradientAnimationStyle, CustomRainbowStyle = title.CustomRainbowStyle, Glow = title.Glow };
+        if ((title.GradientColourSet != null || title.CustomGradientStyle != null) && Config.EnableAnimation) {
+            characterInspectAnimatedTitle = new CustomTitle() { Title = title.Title, IsPrefix = title.IsPrefix, Color = title.Color, GradientColourSet = title.GradientColourSet, GradientAnimationStyle = title.GradientAnimationStyle, CustomGradientStyle = title.CustomGradientStyle, Glow = title.Glow };
         }
     }
 
@@ -392,6 +399,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     Vector3? glow = null;
                     int? gradientColourSet = null;
                     GradientAnimationStyle? gradientAnimationStyle = null;
+                    Guid? customGradientId = null;
                     var silent = false;
                     
                     foreach (var a in setArgs) {
@@ -410,13 +418,32 @@ public unsafe class Plugin : IDalamudPlugin {
 
                         if (arg.StartsWith('+')) {
                             var s = arg[1..].Split('/', 2);
+
+                            // Try parsing as built-in gradient (numeric ID)
                             if (int.TryParse(s[0], out var c)) {
                                 gradientColourSet = c;
-                                if (s.Length == 2 && Enum.TryParse(s[1], out GradientAnimationStyle style)) {
+                                customGradientId = null;
+                                if (s.Length == 2 && Enum.TryParse(s[1], ignoreCase: true, out GradientAnimationStyle style)) {
                                     gradientAnimationStyle = style;
                                 }
+                            } else {
+                                // Try parsing as custom gradient (name)
+                                var gradientName = s[0];
+                                var customGradient = Config.CustomGradients.FirstOrDefault(g =>
+                                    g.Name.Equals(gradientName, StringComparison.OrdinalIgnoreCase));
+
+                                if (customGradient != null) {
+                                    customGradientId = customGradient.Id;
+                                    gradientColourSet = null;
+                                    if (s.Length == 2 && Enum.TryParse(s[1], ignoreCase: true, out GradientAnimationStyle style)) {
+                                        gradientAnimationStyle = style;
+                                    }
+                                } else {
+                                    PluginService.Chat.PrintError($"Custom gradient '{gradientName}' not found.", Name);
+                                    return;
+                                }
                             }
-                            
+
                             continue;
                         }
                         
@@ -488,6 +515,14 @@ public unsafe class Plugin : IDalamudPlugin {
                     characterConfig.Override.Enabled = true;
                     characterConfig.Override.GradientColourSet = gradientColourSet;
                     characterConfig.Override.GradientAnimationStyle = gradientAnimationStyle;
+                    characterConfig.Override.CustomGradientId = customGradientId;
+
+                    // Reconstruct the custom gradient style if a custom gradient was set
+                    if (customGradientId != null) {
+                        characterConfig.Override.ReconstructCustomGradient(Config);
+                    } else {
+                        characterConfig.Override.CustomGradientStyle = null;
+                    }
 
                     if (!silent) {
                         PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString(animate: false)).Build());

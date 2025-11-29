@@ -37,6 +37,17 @@ public class GradientStyle {
         return arr2;
     }
 
+    public string Encode() {
+        var length = Colours.GetLength(0);
+        var arr = new byte[length * 3];
+        for (var i = 0; i < length; i++) {
+            arr[i * 3] = Colours[i, 0];
+            arr[i * 3 + 1] = Colours[i, 1];
+            arr[i * 3 + 2] = Colours[i, 2];
+        }
+        return Convert.ToBase64String(arr);
+    }
+
     public void Apply(SeStringBuilder builder, string title, bool animate) {
         if (!animate) {
             ApplyStatic(builder, title);

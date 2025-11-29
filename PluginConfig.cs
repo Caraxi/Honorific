@@ -26,6 +26,7 @@ public class PluginConfig : IPluginConfiguration {
     public bool DisableQuotes;
 
     public Dictionary<ulong, (string, uint)> IdentifyAs = new();
+    public List<CustomGradient> CustomGradients = new();
     
     public bool TryGetCharacterConfig(string name, uint world, out CharacterConfig? characterConfig) {
         characterConfig = null;
