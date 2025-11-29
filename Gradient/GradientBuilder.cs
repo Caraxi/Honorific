@@ -322,7 +322,7 @@ public static class GradientBuilder {
             
             if (GeneratedStyle != null) {
                 var previewTitle = new CustomTitle() {
-                    Title = PreviewText, CustomRainbowStyle = GeneratedStyle,
+                    Title = PreviewText, CustomGradientStyle = GeneratedStyle,
                     Color = PreviewTextColour
                 };
                 

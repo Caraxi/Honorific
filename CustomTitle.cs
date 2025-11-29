@@ -99,8 +99,11 @@ public partial class CustomTitle {
     public int? GradientColourSet;
     public GradientAnimationStyle? GradientAnimationStyle;
 
-    public bool ShouldSerializeCustomRainbowStyle() => CustomRainbowStyle != null;
-    public GradientStyle? CustomRainbowStyle;
+    public Guid? CustomGradientId;
+
+    public bool ShouldSerializeCustomGradientStyle() => false;
+    [Newtonsoft.Json.JsonIgnore]
+    public GradientStyle? CustomGradientStyle;
     
 
     public bool ShouldSerializeLocationCondition() => TitleCondition == TitleConditionType.Location;
@@ -131,6 +134,15 @@ public partial class CustomTitle {
         }
     }
 
+    public void ReconstructCustomGradient(PluginConfig config) {
+        if (CustomGradientId != null && CustomGradientStyle == null) {
+            var customGradient = config.CustomGradients.FirstOrDefault(g => g.Id == CustomGradientId);
+            if (customGradient != null && GradientAnimationStyle != null) {
+                CustomGradientStyle = customGradient.ToGradientStyle(GradientAnimationStyle.Value);
+            }
+        }
+    }
+
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true, bool animate = true) {
         if (string.IsNullOrEmpty(Title)) return SeString.Empty;
         var builder = new SeStringBuilder();
@@ -143,8 +155,8 @@ public partial class CustomTitle {
                 return;
             }
 
-            if (CustomRainbowStyle != null) {
-                CustomRainbowStyle.Apply(builder, Title, animate);
+            if (CustomGradientStyle != null) {
+                CustomGradientStyle.Apply(builder, Title, animate);
                 return;
             }
             
