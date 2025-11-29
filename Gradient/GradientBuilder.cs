@@ -422,19 +422,27 @@ public static class GradientBuilder {
         ImGui.Dummy(new Vector2(32));
         ImGui.SameLine();
 
-        using (ImRaii.Group()) {
-            ImGui.Dummy(new Vector2(32));
-            foreach (var a in FixedColours.OrderBy(f => f.Position)) {
-                using (ImRaii.PushColor(ImGuiCol.ButtonActive, a.Colour & 0x80FFFFFF)) 
-                using (ImRaii.PushColor(ImGuiCol.ButtonHovered, a.Colour & 0x40FFFFFF)) 
-                using (ImRaii.PushColor(ImGuiCol.Button, a.Colour)) {
-                    if (ImGui.Button($"##color_{a.Guid}", new Vector2(ImGui.GetTextLineHeightWithSpacing()))) {
-                        Editing = a.Guid;
-                    } 
+        using (ImRaii.Group())
+        {
+            ImGui.NewLine();
+            if (ImGui.BeginChild(""))
+            {
+                ImGui.Dummy(new Vector2(32));
+                foreach (var a in FixedColours.OrderBy(f => f.Position))
+                {
+                    using (ImRaii.PushColor(ImGuiCol.ButtonActive, a.Colour & 0x80FFFFFF))
+                    using (ImRaii.PushColor(ImGuiCol.ButtonHovered, a.Colour & 0x40FFFFFF))
+                    using (ImRaii.PushColor(ImGuiCol.Button, a.Colour))
+                    {
+                        if (ImGui.Button($"##color_{a.Guid}", new Vector2(ImGui.GetTextLineHeightWithSpacing())))
+                        {
+                            Editing = a.Guid;
+                        }
+                    }
+
+                    ImGui.SameLine();
+                    ImGui.Text($"@ {MathF.Round(a.Position * 100 / (float)ushort.MaxValue, 1)}%");
                 }
-                
-                ImGui.SameLine();
-                ImGui.Text($"@ {MathF.Round(a.Position * 100 / (float)ushort.MaxValue, 1)}%");
             }
         }
     }
