@@ -16,6 +16,7 @@ using SeStringBuilder = Lumina.Text.SeStringBuilder;
 namespace Honorific;
 
 public class TitleData {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GradientStyle> _gradientStyleCache = new();
 
     public string? Title = string.Empty;
     public bool IsPrefix;
@@ -75,10 +76,13 @@ public class TitleData {
             GradientAnimationStyle = data.GradientAnimationStyle ?? (data.GradientColourSet == null ? GetAnimationStyle(data.RainbowMode) : null),
         };
 
-        // If base64 gradient data is provided, reconstruct the gradient style
+        // If base64 gradient data is provided, reconstruct the gradient style using cache
         if (!string.IsNullOrEmpty(data.GradientBase64) && data.GradientAnimationStyle != null) {
             try {
-                title.CustomGradientStyle = new GradientStyle("IPC Gradient", data.GradientBase64, data.GradientAnimationStyle.Value);
+                var cacheKey = $"{data.GradientBase64}:{data.GradientAnimationStyle.Value}";
+                title.CustomGradientStyle = _gradientStyleCache.GetOrAdd(cacheKey, key => {
+                    return new GradientStyle("IPC Gradient", data.GradientBase64, data.GradientAnimationStyle.Value);
+                });
             } catch {
                 // If base64 decoding fails, fall back to the ID-based approach
             }
