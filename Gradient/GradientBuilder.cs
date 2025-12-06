@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
@@ -332,7 +333,7 @@ public static class GradientBuilder {
                 using (ImRaii.Group()) {
                     ImGuiHelpers.SeStringWrapped(previewTitle.ToSeString(false).Encode(),
                         new SeStringDrawParams
-                            { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, FontSize = 32 });
+                            { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, });
                 }
 
 
