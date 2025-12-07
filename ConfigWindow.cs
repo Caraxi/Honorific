@@ -1207,14 +1207,14 @@ public class ConfigWindow : Window {
             ImGui.Text("Current Title: ");
             ImGui.SameLine();
             if (displayedTitle.Visible && activeCharacter is IPlayerCharacter pc) {
-                ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont});
+                ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
                 if (plugin.TryGetTitle(pc, out var activeTitle) && activeTitle != null) {
                     var expectedTitle = activeTitle.ToSeString(activeTitle.IsOriginal || !config.DisableQuotes, config.ShowColoredTitles, config.EnableAnimation);
                     if (!displayedTitle.Title.IsSameAs(expectedTitle, out _)) {
                         if (delayError.ElapsedMilliseconds > 1000) {
                             ImGui.Text("Expected Title:");
                             ImGui.SameLine();
-                            ImGuiHelpers.SeStringWrapped(expectedTitle.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont});
+                            ImGuiHelpers.SeStringWrapped(expectedTitle.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
                         
                         
                             ImGui.TextColored(ImGuiColors.DalamudRed, "Honorific appears to be failing to set this characters title.");
@@ -1361,7 +1361,7 @@ public class ConfigWindow : Window {
                             var dl = ImGui.GetWindowDrawList();
                             var t = new CustomTitle() { Color = title.Color, Title = style.Name, GradientColourSet = i, GradientAnimationStyle = animationStyle};
                 
-                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont});
+                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
                             ImGui.NewLine();
                         }
                     }
@@ -1384,7 +1384,7 @@ public class ConfigWindow : Window {
             var rainbowModeTitle = new CustomTitle() { Color = title.Color, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
                 
-            ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont});
+            ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
         }
 
         return modified;
@@ -1515,7 +1515,7 @@ public class ConfigWindow : Window {
                 clipMin.Y = MathF.Max(clipMin.Y, ImGui.GetWindowPos().Y);
                 clipMax.Y = MathF.Min(clipMax.Y, ImGui.GetWindowPos().Y + ImGui.GetWindowHeight());
                 dl.PushClipRect(clipMin, clipMax);
-                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont });
+                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx });
                 dl.PopClipRect();
             }
         }

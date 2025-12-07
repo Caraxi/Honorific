@@ -333,7 +333,7 @@ public static class GradientBuilder {
                 using (ImRaii.Group()) {
                     ImGuiHelpers.SeStringWrapped(previewTitle.ToSeString(false).Encode(),
                         new SeStringDrawParams
-                            { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, });
+                            { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx });
                 }
 
 
