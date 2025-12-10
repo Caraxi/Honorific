@@ -412,7 +412,7 @@ public unsafe class Plugin : IDalamudPlugin {
                             var s = arg[1..].Split('/', 2);
                             if (int.TryParse(s[0], out var c)) {
                                 gradientColourSet = c;
-                                if (s.Length == 2 && Enum.TryParse(s[1], out GradientAnimationStyle style)) {
+                                if (s.Length == 2 && Enum.TryParse(s[1], true, out GradientAnimationStyle style)) {
                                     gradientAnimationStyle = style;
                                 }
                             }
