@@ -37,6 +37,7 @@ public class ConfigWindow : Window {
     private Stopwatch configModifiedStopwatch = new();
 
     public ConfigWindow(string name, Plugin plugin, PluginConfig config) : base(name, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse) {
+        this.AllowClickthrough = false;
         this.config = config;
         this.plugin = plugin;
     }
@@ -46,6 +47,20 @@ public class ConfigWindow : Window {
             MinimumSize = new Vector2(800, 400),
             MaximumSize = ImGuiHelpers.MainViewport.Size * 1 / ImGuiHelpers.GlobalScale * 0.95f
         };
+        
+        if (IsClickthrough) {
+            AllowClickthrough = true;
+            Position = new Vector2(50, 50);
+            Size = new Vector2(800, 400);
+            PositionCondition = ImGuiCond.Always;
+            SizeCondition = ImGuiCond.Always;
+        } else {
+            AllowClickthrough = false;
+            Position = null;
+            PositionCondition = ImGuiCond.None;
+            Size = null;
+            SizeCondition = ImGuiCond.None;
+        }
     }
     
     private Vector2 iconButtonSize = new(16);
@@ -56,18 +71,37 @@ public class ConfigWindow : Window {
     private Vector3? dragColour;
     private bool dragging;
     private readonly Stopwatch delayError = Stopwatch.StartNew();
+    #if DEBUG
+    private bool anonomyousScreenshotMode = false;
+    #else
+    private bool anonomyousScreenshotMode = false;
+    #endif
 
     public void DrawCharacterList(string highlightName, uint highlightWorld) {
 
         foreach (var (worldId, characters) in config.WorldCharacterDictionary.ToArray()) {
             var world = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(worldId);
             if (world == null) continue;
+
+            if (anonomyousScreenshotMode) {
+                if (highlightWorld != worldId) continue;
+                if (!characters.Keys.Any(c => highlightName.Equals(c, StringComparison.InvariantCultureIgnoreCase))) continue;
+            }
+
+            if (anonomyousScreenshotMode) {
+                ImGui.TextDisabled($"World Name");
+            } else {
+                ImGui.TextDisabled($"{world.Value.Name.ExtractText()}");
+            }
             
-            ImGui.TextDisabled($"{world.Value.Name.ExtractText()}");
             ImGui.Separator();
 
             foreach (var (name, characterConfig) in characters.ToArray()) {
                 var id = $"{name}##{world.Value.Name.ExtractText()}";
+                if (anonomyousScreenshotMode) {
+                    if (!name.Equals(highlightName, StringComparison.InvariantCultureIgnoreCase)) continue;
+                    id = $"Character Name##{world.Value.Name.ExtractText()}";
+                }
                 using (ImRaii.PushColor(ImGuiCol.Text, 0xFFAA55FF, highlightName.Equals(name, StringComparison.InvariantCultureIgnoreCase) && highlightWorld == worldId)) {
                     if (ImGui.Selectable(id, selectedCharacter == characterConfig)) {
                         selectedCharacter = characterConfig;
@@ -132,6 +166,11 @@ public class ConfigWindow : Window {
     private CustomTitle forcedTitleCommandGeneratorTitle = new();
     
     public override void Draw() {
+        if (IsClickthrough) {
+            ImGui.TextWrapped("This window does not support 'Click Through' and was somehow enabled accidentally. Please disable Click Through by clicking the three lines on the top right of the window.");
+            return;
+        }
+        
         var modified = false;
         ImGui.BeginGroup();
         {
@@ -142,16 +181,18 @@ public class ConfigWindow : Window {
                 
                 if (config.IdentifyAs.TryGetValue(PluginService.PlayerState.ContentId, out var identifyAs)) {
                     var worldName = PluginService.Data.GetExcelSheet<World>().GetRowOrDefault(identifyAs.Item2)?.Name.ExtractText() ?? $"UnknownWorld#{identifyAs.Item2}";
-                    ImGui.Text("Current Identity:");
-                    ImGui.SameLine();
-                    if (ImGui.SmallButton("Reset")) {
+                    if (!anonomyousScreenshotMode) {
+                        ImGui.Text("Current Identity:");
+                        ImGui.SameLine();
+                    }
+                    if (!anonomyousScreenshotMode && ImGui.SmallButton("Reset")) {
                         config.IdentifyAs.Remove(PluginService.PlayerState.ContentId);
                     } else {
                         (name, homeWorld) = identifyAs;
-                        ImGui.Text($"\t{name}\n\t\t@ {worldName}");
-                        
+                        if (!anonomyousScreenshotMode) ImGui.Text($"\t{name}\n\t\t@ {worldName}");
                     }
-                    ImGui.Separator();
+                    if (!anonomyousScreenshotMode)
+                        ImGui.Separator();
                 }
                 
                 DrawCharacterList(name, homeWorld);
@@ -249,7 +290,7 @@ public class ConfigWindow : Window {
                     }
                 }
                 
-                if (Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
+                if (!anonomyousScreenshotMode && Plugin.IsDebug && ImGui.TreeNode("DEBUG INFO")) {
                     
                     if (activePlayer is IPlayerCharacter pc && plugin.TryGetTitle(pc, out var expectedTitle) && expectedTitle != null) {
                         ImGui.TextDisabled($"Active Object: {activePlayer}");
@@ -454,10 +495,10 @@ public class ConfigWindow : Window {
                 
                 
                 #if DEBUG
-                ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
+                if (!anonomyousScreenshotMode) ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
                 #endif
 
-                if (Plugin.IsDebug && ImGui.TreeNode("Debugging")) {
+                if (!anonomyousScreenshotMode && Plugin.IsDebug && ImGui.TreeNode("Debugging")) {
                     PerformanceMonitors.DrawTable();
                     ImGui.Separator();
 
@@ -1515,7 +1556,7 @@ public class ConfigWindow : Window {
                 clipMin.Y = MathF.Max(clipMin.Y, ImGui.GetWindowPos().Y);
                 clipMax.Y = MathF.Min(clipMax.Y, ImGui.GetWindowPos().Y + ImGui.GetWindowHeight());
                 dl.PushClipRect(clipMin, clipMax);
-                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx });
+                ImGuiHelpers.SeStringWrapped(title.ToSeString(false, config.ShowColoredTitles, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
                 dl.PopClipRect();
             }
         }
