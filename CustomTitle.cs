@@ -234,27 +234,12 @@ public partial class CustomTitle {
         }
     }
     
-    [GeneratedRegex("^[-a-zA-Z0-9@:%._\\+~#=]{1,256}[\\.,][a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$")]
-    private static partial Regex UrlRegex();
-    
     public void UpdateWarning() {
         WarningMessage = string.Empty;
-
         if (!IsValid()) {
             WarningMessage = "Title is invalid.\nThis title will not be displayed.";
             WarningColour = ImGuiColors.DalamudRed;
             return;
-        }
-
-        if (string.IsNullOrWhiteSpace(Title)) return;
-        
-        var mare = PluginService.PluginInterface.InstalledPlugins.FirstOrDefault(p => string.Equals(p.InternalName, "MareSynchronos", StringComparison.InvariantCultureIgnoreCase) && p.IsLoaded);
-        if ( mare != null) {
-            var title = Title.Normalize(NormalizationForm.FormKD);
-            if (UrlRegex().IsMatch(title)) {
-                WarningMessage = $"This title will not be accepted by {mare.Name} and will prevent syncing of your character.\nPlease do not use URLs in your title.";
-                WarningColour = ImGuiColors.DalamudRed;
-            }
         }
     }
 }
