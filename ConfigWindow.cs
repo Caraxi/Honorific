@@ -1248,7 +1248,7 @@ public class ConfigWindow : Window {
             ImGui.Text("Current Title: ");
             ImGui.SameLine();
             if (displayedTitle.Visible && activeCharacter is IPlayerCharacter pc) {
-                ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
+                ImGuiHelpers.SeStringWrapped(displayedTitle.Title.Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
                 if (plugin.TryGetTitle(pc, out var activeTitle) && activeTitle != null) {
                     var expectedTitle = activeTitle.ToSeString(activeTitle.IsOriginal || !config.DisableQuotes, config.ShowColoredTitles, config.EnableAnimation);
                     if (!displayedTitle.Title.IsSameAs(expectedTitle, out _)) {
@@ -1402,7 +1402,7 @@ public class ConfigWindow : Window {
                             var dl = ImGui.GetWindowDrawList();
                             var t = new CustomTitle() { Color = title.Color, Title = style.Name, GradientColourSet = i, GradientAnimationStyle = animationStyle};
                 
-                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
+                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = dl, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
                             ImGui.NewLine();
                         }
                     }
@@ -1425,7 +1425,7 @@ public class ConfigWindow : Window {
             var rainbowModeTitle = new CustomTitle() { Color = title.Color, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
                 
-            ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
+            ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
         }
 
         return modified;
