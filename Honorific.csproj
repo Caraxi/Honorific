@@ -8,9 +8,5 @@
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <Version>1.7.2.1</Version>
-
-        <!-- TODO: Remove -->
-        <Is2025 Condition="$([System.DateTime]::UtcNow.Year) == 2025">true</Is2025> 
-        <NoWarn Condition="'$(Is2025)' == 'true'">MSB3277</NoWarn>
     </PropertyGroup>
 </Project>
