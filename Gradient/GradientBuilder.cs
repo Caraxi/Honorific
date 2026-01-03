@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Text.Json.Nodes;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiSeStringRenderer;
@@ -30,9 +29,10 @@ public static class GradientBuilder {
 
     public record Pair(FixedColour Begin, FixedColour End) {
         public int Length => End.Position - Begin.Position;
-        public FixedColour ColourAt(float t) {
+        public FixedColour ColourAt(float t) => ColourAt(t, Mode);
+        public FixedColour ColourAt(float t, int mode) {
             var p = (ushort)MathF.Round(Begin.Position + t * Length);
-            return new FixedColour(p, Mode switch {
+            return new FixedColour(p, mode switch {
                 0 => LerpOpaque(Begin.Colour, End.Colour, t),
                 1 => LerpHueOpaque(Begin.Colour, End.Colour, t),
                 _ => 0
@@ -63,7 +63,39 @@ public static class GradientBuilder {
     }
 
     public static GradientStyle? GeneratedStyle;
+    
+    public static GradientStyle GenerateStyle(GradientBuilderArgs args) {
+        var steps = int.Clamp(args.Steps, 2, 1024);
+        args.UpdatePairs();
+        
+        var l = new List<RGB>();
+        var step = (double)ushort.MaxValue / (steps - 1);
+        for (int i = 0; i < steps; i++) {
+            var pos = (float) step * i;
+            var fixedColour = args.FixedColours.Find(f => f.Position == (ushort)MathF.Round(pos));
+            uint c = 0;
+            if (fixedColour != null) {
+                c = fixedColour.Colour;
+            } else {
+                var pair = args.Pairs.First(p => p.Begin.Position < pos &&  p.End.Position > pos);
+                if (pair == null) throw new Exception($"Failed to get pair at position: {pos}");
+                var pairPos = (pos - pair.Begin.Position) / (pair.End.Position - pair.Begin.Position);
+                c = pair.ColourAt(pairPos, args.GradientMode).Colour;
+            }
+            
+            l.Add(UintToRGB(c));
+        }
 
+        byte[,] bytes = new byte[l.Count, 3];
+        for (var i = 0; i < l.Count; i++) {
+            bytes[i, 0] = l[i].R;
+            bytes[i, 1] = l[i].G;
+            bytes[i, 2] = l[i].B;
+        }
+        
+        return new GradientStyle(args.Name, bytes, args.AnimationStyle);
+    }
+    
     public static void GenerateStyle(int? steps = null) {
         steps ??= Length;
         if (steps < 2) steps = 2;
@@ -155,7 +187,6 @@ public static class GradientBuilder {
 
     public static void Draw() {
         using var _ = ImRaii.PushId("GradientBuilder");
-        
         if (ImGui.SmallButton("Spread") && FixedColours.Count > 2) {
             var step = (double)ushort.MaxValue / (FixedColours.Count - 1);
             var i = 0;
@@ -172,19 +203,14 @@ public static class GradientBuilder {
             GenerateStyle();
         }
         
-        
-        
         ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, 32));
         ImGui.Dummy(new Vector2(16));
         ImGui.SameLine();
         ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X - 16, 100));
-
         var dl = ImGui.GetWindowDrawList();
         var tl = ImGui.GetItemRectMin();
         var size = ImGui.GetItemRectSize();
-
         UpdatePairs();
-        
         for (var i = 0; i < size.X; i++) {
             var pos = (ushort) MathF.Round((i / size.X) * ushort.MaxValue);
             var startPos = tl + new Vector2(i, 0);

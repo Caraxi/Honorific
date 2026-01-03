@@ -22,7 +22,7 @@ public class TitleData {
     public bool IsOriginal;
     public Vector3? Color;
     public Vector3? Glow;
-    public int RainbowMode;
+    public Vector3? Color3;
     public int? GradientColourSet;
     public GradientAnimationStyle? GradientAnimationStyle;
 
@@ -31,38 +31,22 @@ public class TitleData {
         IsPrefix = title.IsPrefix,
         Color = title.Color,
         Glow = title.Glow,
+        Color3 = title.Color3,
         IsOriginal = title.IsOriginal,
         GradientColourSet = title.GradientColourSet,
-        GradientAnimationStyle = title.GradientAnimationStyle,
-        RainbowMode = GetRainbowMode(title.GradientColourSet, title.GradientAnimationStyle),
+        GradientAnimationStyle = title.GradientAnimationStyle
     };
-
-    private static int GetRainbowMode(int? titleGradientColourSet, GradientAnimationStyle? titleGradientAnimationStyle) {
-        if (titleGradientColourSet == null) return 0;
-        if (titleGradientAnimationStyle is null or Gradient.GradientAnimationStyle.Static) return 0;
-        if (titleGradientColourSet >= 5) return 0;
-        return ((titleGradientColourSet.Value) * 2) + (titleGradientAnimationStyle == Gradient.GradientAnimationStyle.Wave ? 1 : 2);
-    }
 
     public static implicit operator CustomTitle(TitleData data) => new() {
         Title = data.Title,
         IsPrefix = data.IsPrefix,
         Color = data.Color,
         Glow = data.Glow,
+        Color3 = data.Color3,
         IsOriginal = data.IsOriginal,
-        GradientColourSet = data.GradientColourSet ?? GetColourSet(data.RainbowMode),
-        GradientAnimationStyle = data.GradientAnimationStyle ?? (data.GradientColourSet == null ? GetAnimationStyle(data.RainbowMode) : null),
+        GradientColourSet = data.GradientColourSet,
+        GradientAnimationStyle = data.GradientAnimationStyle,
     };
-
-    public static GradientAnimationStyle? GetAnimationStyle(int dataRainbowMode) {
-        if (dataRainbowMode == 0) return null;
-        return (dataRainbowMode - 1) % 2 == 0 ? Gradient.GradientAnimationStyle.Wave : Gradient.GradientAnimationStyle.Pulse;
-    }
-
-    public static int? GetColourSet(int dataRainbowMode) {
-        if (dataRainbowMode == 0) return null;
-        return (dataRainbowMode - 1) / 2;
-    }
 
     public override bool Equals(object? obj) {
         if (obj is not TitleData other) return false;
@@ -71,6 +55,7 @@ public class TitleData {
                && IsOriginal == other.IsOriginal
                && NullableVectorEquals(Color, other.Color)
                && NullableVectorEquals(Glow, other.Glow)
+               && NullableVectorEquals(Color3, other.Color3)
                && GradientColourSet == other.GradientColourSet
                && GradientAnimationStyle == other.GradientAnimationStyle;
     }
@@ -82,7 +67,7 @@ public class TitleData {
         return a!.Value == b!.Value;
     }
     
-    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, GradientColourSet, GradientAnimationStyle);
+    public override int GetHashCode() => HashCode.Combine(Title, IsPrefix, IsOriginal, Color, Glow, GradientColourSet, GradientAnimationStyle, Color3);
 }
 
 public partial class CustomTitle {
@@ -94,8 +79,7 @@ public partial class CustomTitle {
     public bool Enabled;
     public TitleConditionType TitleCondition = TitleConditionType.None;
     public int ConditionParam0;
-
-    public int RainbowMode;
+    
     public int? GradientColourSet;
     public GradientAnimationStyle? GradientAnimationStyle;
 
@@ -108,6 +92,7 @@ public partial class CustomTitle {
 
     public Vector3? Color;
     public Vector3? Glow;
+    public Vector3? Color3;
     
     [JsonIgnore] public string WarningMessage = string.Empty;
     [JsonIgnore] public Vector4 WarningColour = ImGuiColors.DalamudWhite;
@@ -119,16 +104,6 @@ public partial class CustomTitle {
         if (Title.Length > Plugin.MaxTitleLength) return false;
         if (Title.Any(char.IsControl)) return false;
         return true;
-    }
-    
-    public void Update() {
-        if (RainbowMode >= 0 && GradientColourSet == null) {
-            var style = GradientSystem.GetStyle(RainbowMode);
-            if (style != null) {
-                GradientColourSet = style.ColourSet;
-                GradientAnimationStyle = style.AnimationStyle;
-            }
-        }
     }
 
     public SeString ToSeString(bool includeQuotes = true, bool includeColor = true, bool animate = true) {
@@ -149,15 +124,11 @@ public partial class CustomTitle {
             }
             
             if (GradientColourSet != null) {
-                var style = GradientSystem.GetStyle(GradientColourSet.Value, GradientAnimationStyle);
-                if (style != null) {
-                    style.Apply(builder, Title, animate);
-                    return;
-                }
-            }
-            
-            if (RainbowMode > 0 && RainbowMode <= GradientSystem.NumColourLists) {
-                var style = GradientSystem.GetStyle(RainbowMode);
+                var style = GradientColourSet.Value switch {
+                    -1 => GradientSystem.GetDualColourStyle(Glow, Color3, GradientAnimationStyle),
+                    _ => GradientSystem.GetStyle(GradientColourSet.Value, GradientAnimationStyle)
+                };
+
                 if (style != null) {
                     style.Apply(builder, Title, animate);
                     return;

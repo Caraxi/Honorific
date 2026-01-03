@@ -65,14 +65,9 @@ public unsafe class Plugin : IDalamudPlugin {
 
         foreach (var (_, worlds) in Config.WorldCharacterDictionary) {
             foreach (var (_, character) in worlds) {
-                character.DefaultTitle.Update();
                 character.DefaultTitle.UpdateWarning();
-                
-                character.Override.Update();
                 character.Override.UpdateWarning();
-                
                 foreach (var t in character.CustomTitles) {
-                    t.Update();
                     t.UpdateWarning();
                 }
             }

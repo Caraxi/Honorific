@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+using Dalamud.Bindings.ImGui;
 using Honorific.Gradient;
 
 namespace Honorific.Gradient;
@@ -43,6 +44,8 @@ public static class GradientSystem {
     private static readonly List<GradientStyle> ColourLists = [];
     private static readonly Dictionary<(int, GradientAnimationStyle?), GradientStyle> GradientStyles = new();
     
+    private static readonly Dictionary<(uint, uint, GradientAnimationStyle), GradientStyle> DualColourGradients = new();
+    
     private static readonly List<(string Name, string Base64)> ColourSets = [
         ("Pride Rainbow", "5AMD6RsC7TMC8ksB92MB/HsA/5EA/6IA/7IA/8MA/9QA/+UA5+MEutAKjr0RYaoYNZYeCIMlAHlFAG9rAGaRAF23AFTdAkv9FkXnKj/RPjm8UjOmZi2QcymCcymCcymCcymCcymCcymCZi2QUjOmPjm8Kj/RFkXnAkv9AFTdAF23AGaRAG9rAHlFCIMlNZYeYaoYjr0RutAK5+ME/+UA/9QA/8MA/7IA/6IA/5EA/HsA92MB8ksB7TMC6RsC5AMD"),
         ("Transgender", "W876b8nygsXplsDhqbvYvbfQ0LLI5K2/9aq59rXC+MDL+cvU+tbd/OHm/ezv/vf4//z9/fH0/Obr+9zi+tHZ+MbQ97vH9rC+7qu72q/Ex7TMs7nUn77djMLleMftZcz2Zcz2eMftjMLln77ds7nUx7TM2q/E7qu79rC+97vH+MbQ+tHZ+9zi/Obr/fH0//z9/vf4/ezv/OHm+tbd+cvU+MDL9rXC9aq55K2/0LLIvbfQqbvYlsDhgsXpb8nyW876"),
@@ -76,13 +79,7 @@ public static class GradientSystem {
     public static int NumColourSets => ColourSets.Count;
 
     public static string GetName(int i) => i > ColourLists.Count ? "Invalid" : ColourLists[i - 1].Name;
-    public static readonly RGB White = new(255, 255, 255);
 
-    public static RGB GetColourRGB(int rainbowMode, int chrIndex, int throttle, bool animate = true) {
-        if (rainbowMode == 0 || rainbowMode > ColourLists.Count) return White;
-        var style = ColourLists[rainbowMode - 1];
-        return GetColourRGB(style, chrIndex, throttle, animate);
-    }
     
     private static readonly Stopwatch TimeSinceStart = Stopwatch.StartNew();
     
@@ -93,11 +90,6 @@ public static class GradientSystem {
         var m = style.AnimationStyle == GradientAnimationStyle.Pulse ? 0 : 1;
         var i = (animationOffset/ throttle + (chrIndex * m)) % rainbowColors.GetLength(0);
         return new(rainbowColors[i, 0], rainbowColors[i, 1], rainbowColors[i, 2]);
-    }
-
-    public static Vector3 GetColourVec3(int rainbowMode, int offset, int throttle) {
-        var rgb = GetColourRGB(rainbowMode, offset, throttle);
-        return new Vector3(rgb.R / 255f, rgb.G / 255f, rgb.B / 255f);
     }
     
     public static Vector3 GetColourVec3(GradientStyle style, int offset, int throttle) {
@@ -127,4 +119,41 @@ public static class GradientSystem {
 
         return style;
     }
+
+    public static GradientStyle? GetDualColourStyle(Vector3? first, Vector3? second, GradientAnimationStyle? gradientAnimationStyle) {
+        if (first == null || second == null) return null;
+        return GetDualColourStyle(
+            ImGui.ColorConvertFloat4ToU32(first.Value.AsVector4()), 
+            ImGui.ColorConvertFloat4ToU32(second.Value.AsVector4()), 
+            gradientAnimationStyle ?? GradientAnimationStyle.Static
+        );
+    }
+
+    public static GradientStyle GetDualColourStyle(uint first, uint second, GradientAnimationStyle gradientAnimationStyle) {
+        first |= 0xFF000000; // Opaque Only
+        second |= 0xFF000000;
+
+        if (DualColourGradients.TryGetValue((first, second, gradientAnimationStyle), out var style)) {
+            return style;
+        }
+        
+        style = GradientBuilder.GenerateStyle(new GradientBuilderArgs() {
+            Name = $"Two Colour Gradient",
+            Steps = 64,
+            AnimationStyle = gradientAnimationStyle,
+            GradientMode = 0,
+            FixedColours = [
+                new(ushort.MinValue + 00000, first),
+                new(ushort.MinValue + 10000, first),
+                new(ushort.MinValue + 23000, second),
+                new(ushort.MaxValue - 23000, second),
+                new(ushort.MaxValue - 10000, first),
+                new(ushort.MaxValue - 00000, first)
+            ]
+        });
+        
+        DualColourGradients[(first, second, gradientAnimationStyle)] = style;
+        return style;
+    }
+    
 }

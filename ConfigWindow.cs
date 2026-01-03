@@ -491,9 +491,6 @@ public class ConfigWindow : Window {
                     }
                 }
                 
-                
-                
-                
                 #if DEBUG
                 if (!anonomyousScreenshotMode) ImGui.Checkbox("[DEBUG] Open config window on startup", ref config.DebugOpenOnStatup);
                 #endif
@@ -510,10 +507,6 @@ public class ConfigWindow : Window {
                         
                         if (ImGui.Button($"Test SET IPC for '{target.Name.TextValue}' with Gradient")) {
                             PluginService.PluginInterface.GetIpcSubscriber<uint, string, object>("Honorific.SetCharacterTitle").InvokeAction(pc.ObjectIndex, JsonConvert.SerializeObject(new TitleData {Color = new Vector3(1, 0, 0), GradientColourSet = Random.Shared.Next(GradientSystem.NumColourSets), GradientAnimationStyle = (GradientAnimationStyle) Random.Shared.Next(0, 2), Title = "Test Title", IsPrefix = true}));
-                        }
-                                                
-                        if (ImGui.Button($"Test SET IPC for '{target.Name.TextValue}' with Old Gradient")) {
-                            PluginService.PluginInterface.GetIpcSubscriber<uint, string, object>("Honorific.SetCharacterTitle").InvokeAction(pc.ObjectIndex, JsonConvert.SerializeObject(new TitleData {Color = new Vector3(1, 0, 0), RainbowMode = Random.Shared.Next(1, 10), Title = "Test Title", IsPrefix = true}));
                         }
                         
                         if (ImGui.Button($"Test CLEAR IPC for '{target.Name.TextValue}'")) {
@@ -1375,20 +1368,22 @@ public class ConfigWindow : Window {
         var modified = false;
         var w = ImGui.CalcItemWidth();
         if (ImGui.BeginCombo($"##rainbowModeSelect", title.GradientColourSet == null? "Default Glow" : "", ImGuiComboFlags.HeightLargest)) {
-            
-
             if (ImGui.Selectable("Default Glow", title.GradientColourSet == null, ImGuiSelectableFlags.DontClosePopups)) {
-                ImGui.CloseCurrentPopup();
-                title.RainbowMode = 0;
                 title.GradientColourSet = null;
                 title.GradientAnimationStyle = null;
             }
 
             if (ImGui.BeginTabBar("gradientAnimations")) {
-
                 void DrawTab(GradientAnimationStyle animationStyle) {
-                    
                     if (ImGui.BeginChild("gradientPicker", new Vector2(w))) {
+                        if (ImGui.Selectable("Two Colour Gradient", title.GradientColourSet == -1 && title.GradientAnimationStyle == animationStyle, ImGuiSelectableFlags.DontClosePopups)) {
+                            ImGui.CloseCurrentPopup();
+                            title.GradientColourSet = -1;
+                            title.GradientAnimationStyle = animationStyle;
+                            title.Glow ??= new Vector3(1, 0, 0);
+                            title.Color3 ??= new Vector3(0, 1, 0);
+                        }
+                        
                         for (var i = 0; i < GradientSystem.NumColourSets; i++) {
                             var style = GradientSystem.GetStyle(i, animationStyle);
                             if (style == null || style.AnimationStyle != animationStyle) continue;
@@ -1421,24 +1416,46 @@ public class ConfigWindow : Window {
         }
 
         if (title.GradientColourSet != null) {
-            var style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
-            var rainbowModeTitle = new CustomTitle() { Color = title.Color, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
+            var style = title.GradientColourSet.Value switch {
+                -1 => GradientSystem.GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
+                _ => GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
+            };
+            
+            var rainbowModeTitle = new CustomTitle() { Color = title.Color, Glow = title.Glow, Color3 = title.Color3, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
-                
             ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
+            ImGui.NewLine();
+        }
+
+        if (title.GradientColourSet == -1) {
+            var c0 = title.Glow ?? Vector3.Zero;
+            if (ImGui.ColorEdit3("##colour1", ref c0, ImGuiColorEditFlags.NoInputs)) {
+                modified = true;
+                title.Glow = c0;
+            }
+            ImGui.SameLine();
+            var c1 = title.Color3 ?? Vector3.Zero;
+            if (ImGui.ColorEdit3("Colours##colour2", ref c1,  ImGuiColorEditFlags.NoInputs)) {
+                modified = true;
+                title.Color3 = c1;
+            }
         }
 
         return modified;
     }
     
     private bool DrawGlowPicker(string label, CustomTitle title, ref Vector3? color, bool showArrow = true) {
+        using var _ = ImRaii.PushColor(ImGuiCol.Border, ImGui.GetColorU32(ImGuiCol.TitleBgActive));
         using var group = ImRaii.Group();
         var modified = false;
         bool comboOpen;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         if (title.GradientColourSet != null) {
+            var style = title.GradientColourSet.Value switch {
+                -1 => GradientSystem.GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
+                _ => GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
+            };
             
-            var style = GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle);
             var rainbowColor = style == null ? Vector4.One : new Vector4(GradientSystem.GetColourVec3(style, 0, 3), 1);
 
             ImGui.PushStyleColor(ImGuiCol.FrameBg, rainbowColor);
