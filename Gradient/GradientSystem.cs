@@ -156,4 +156,11 @@ public static class GradientSystem {
         return style;
     }
     
+    public static GradientStyle? GetTitleStyle(CustomTitle title) {
+        if (title.GradientColourSet == null) return null;
+        return title.GradientColourSet.Value switch {
+            -1 => GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
+            _ => GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
+        };
+    }
 }

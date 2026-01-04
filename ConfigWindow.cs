@@ -358,9 +358,8 @@ public class ConfigWindow : Window {
                         Plugin.IpcAssignedTitles.Remove(activePlayer.EntityId);
                     }
                     
-                    ImGui.BeginDisabled();
                     
-                    if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 5 : 3)) {
+                    if (ImGui.BeginTable("TitlesTable", config.ShowColoredTitles ? 6 : 4)) {
                         ImGui.TableSetupColumn("##enable", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 4 + 3);
                         ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthFixed, 150 * ImGuiHelpers.GlobalScale);
                         ImGui.TableSetupColumn("Prefix", ImGuiTableColumnFlags.WidthFixed, checkboxSize * 2);
@@ -373,12 +372,17 @@ public class ConfigWindow : Window {
 
 
                         ImGui.TableNextColumn();
-                        DrawTitleCommon(title, ref modified);
+                        DrawTitleCommon(title, ref modified, true);
 
+                        var style = GradientSystem.GetTitleStyle(title);
+                        if (style != null) {
+                            var t = new CustomTitle() { Color = title.Color, Title = style.Name, CustomRainbowStyle = style};
+                            ImGuiHelpers.SeStringWrapped(t.ToSeString(false, animate: config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx});
+                        }
+                        
                         ImGui.EndTable();
                     }
                     
-                    ImGui.EndDisabled();
                     return;
                 }
                 
@@ -1291,7 +1295,7 @@ public class ConfigWindow : Window {
     }
 
     private Vector3 editingColour = Vector3.One;
-    private bool DrawColorPicker(string label, ref Vector3? color, bool showArrow = true) {
+    private bool DrawColorPicker(string label, ref Vector3? color, bool showArrow = true, bool readOnly = false) {
         using var group = ImRaii.Group();
         var modified = false;
         bool comboOpen;
@@ -1311,6 +1315,13 @@ public class ConfigWindow : Window {
             ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new Vector4(color.Value, 1));
             comboOpen = ImGui.BeginCombo(label, "  ", ImGuiComboFlags.HeightLargest | (showArrow ? ImGuiComboFlags.None : ImGuiComboFlags.NoArrowButton));
             ImGui.PopStyleColor(3);
+        }
+
+        if (readOnly && comboOpen) {
+            var c = color == null ? "No Colour" : $"#{(byte)(color.Value.X * 255):X2}{(byte)(color.Value.Y * 255):X2}{(byte)(color.Value.Z * 255):X2}";
+            ImGui.InputText("##colorCode", ref c, 16, ImGuiInputTextFlags.ReadOnly);
+            ImGui.EndCombo();
+            return false;
         }
         
         if (comboOpen) {
@@ -1361,7 +1372,7 @@ public class ConfigWindow : Window {
             ImGui.EndCombo();
         }
 
-        return modified;
+        return !readOnly & modified;
     }
 
     private bool DrawGradientPicker(CustomTitle title) {
@@ -1416,11 +1427,7 @@ public class ConfigWindow : Window {
         }
 
         if (title.GradientColourSet != null) {
-            var style = title.GradientColourSet.Value switch {
-                -1 => GradientSystem.GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
-                _ => GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
-            };
-            
+            var style = GradientSystem.GetTitleStyle(title);
             var rainbowModeTitle = new CustomTitle() { Color = title.Color, Glow = title.Glow, Color3 = title.Color3, GradientAnimationStyle = title.GradientAnimationStyle, GradientColourSet = title.GradientColourSet, Title = style?.Name ?? "Invalid Style" };
             ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
             ImGuiHelpers.SeStringWrapped(rainbowModeTitle.ToSeString(false, config.EnableAnimation).Encode(), new SeStringDrawParams { Color = 0xFFFFFFFF, WrapWidth = float.MaxValue, TargetDrawList = ImGui.GetWindowDrawList(), Font = UiBuilder.DefaultFont, FontSize = UiBuilder.DefaultFontSizePx, ScreenOffset = ImGui.GetCursorScreenPos()});
@@ -1444,18 +1451,14 @@ public class ConfigWindow : Window {
         return modified;
     }
     
-    private bool DrawGlowPicker(string label, CustomTitle title, ref Vector3? color, bool showArrow = true) {
+    private bool DrawGlowPicker(string label, CustomTitle title, ref Vector3? color, bool showArrow = true, bool readOnly = false) {
         using var _ = ImRaii.PushColor(ImGuiCol.Border, ImGui.GetColorU32(ImGuiCol.TitleBgActive));
         using var group = ImRaii.Group();
         var modified = false;
         bool comboOpen;
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         if (title.GradientColourSet != null) {
-            var style = title.GradientColourSet.Value switch {
-                -1 => GradientSystem.GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
-                _ => GradientSystem.GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
-            };
-            
+            var style = GradientSystem.GetTitleStyle(title);
             var rainbowColor = style == null ? Vector4.One : new Vector4(GradientSystem.GetColourVec3(style, 0, 3), 1);
 
             ImGui.PushStyleColor(ImGuiCol.FrameBg, rainbowColor);
@@ -1488,12 +1491,12 @@ public class ConfigWindow : Window {
                 editingColour = color ?? Vector3.One;
             }
 
-            if ((title.GradientColourSet != null || config.IsSupporter)) {
+            if ((title.GradientColourSet != null || config.IsSupporter) && !readOnly) {
                 modified |= DrawGradientPicker(title);
             }
            
             
-            if (title.GradientColourSet == null) {
+            if (title.GradientColourSet == null && !readOnly) {
                 if (ImGui.ColorButton($"##ColorPick_clear", Vector4.One, ImGuiColorEditFlags.NoTooltip)) {
                     color = null;
                     modified = true;
@@ -1536,6 +1539,16 @@ public class ConfigWindow : Window {
                 dl.AddText(ImGui.GetItemRectMin() + size / 2 - textSize / 2, ImGui.ColorConvertFloat4ToU32(new Vector4(editingColour, 1)) ^ 0x00FFFFFF, "Confirm");
                 ImGui.ColorPicker3($"##ColorPick", ref editingColour, ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoSmallPreview);
             }
+            
+            if (readOnly && (title.GradientColourSet == null || title.GradientColourSet == -1)) {
+                var c = color == null ? "No Colour" : $"#{(byte)(color.Value.X * 255):X2}{(byte)(color.Value.Y * 255):X2}{(byte)(color.Value.Z * 255):X2}";
+                ImGui.InputText("##colorCode", ref c, 16, ImGuiInputTextFlags.ReadOnly);
+            }            
+            
+            if (readOnly && (title.GradientColourSet == -1)) {
+                var c = title.Color3 == null ? "No Colour" : $"#{(byte)(title.Color3.Value.X * 255):X2}{(byte)(title.Color3.Value.Y * 255):X2}{(byte)(title.Color3.Value.Z * 255):X2}";
+                ImGui.InputText("##colorCode2", ref c, 16, ImGuiInputTextFlags.ReadOnly);
+            }
 
             ImGui.EndCombo();
         }
@@ -1544,7 +1557,7 @@ public class ConfigWindow : Window {
     }
     
     
-    private void DrawTitleCommon(CustomTitle title, ref bool anyModified) {
+    private void DrawTitleCommon(CustomTitle title, ref bool anyModified, bool readOnly = false) {
         var modified = false;
         ImGui.TableNextColumn();
         
@@ -1563,7 +1576,7 @@ public class ConfigWindow : Window {
         ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail().X);
         using (ImRaii.PushColor(ImGuiCol.Text, 0, !title.EditorActive && config.DisplayPreviewInConfigWindow)) {
             title.Title ??= string.Empty;
-            modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength);
+            modified |= ImGui.InputText($"##title", ref title.Title, Plugin.MaxTitleLength, readOnly ? ImGuiInputTextFlags.ReadOnly  : ImGuiInputTextFlags.None);
             title.EditorActive = ImGui.IsItemActive();
             if (!title.EditorActive && config.DisplayPreviewInConfigWindow) {
                 ImGui.SetCursorScreenPos(ImGui.GetItemRectMin() + ImGui.GetStyle().FramePadding);
@@ -1580,18 +1593,24 @@ public class ConfigWindow : Window {
 
         ImGui.TableNextColumn();
         ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ImGui.GetContentRegionAvail().X / 2 - checkboxSize / 2);
-        modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
+        if (readOnly) {
+            var v = title.IsPrefix;
+            ImGui.Checkbox($"##prefix", ref v);
+        } else {
+            modified |= ImGui.Checkbox($"##prefix", ref title.IsPrefix);
+        }
+        
         checkboxSize = ImGui.GetItemRectSize().X;
         if (config.ShowColoredTitles) {
             ImGui.TableNextColumn();
-            modified |= DrawColorPicker("##colour", ref title.Color);
-            modified |= DragDropColourTarget(ref title.Color);
+            modified |= DrawColorPicker("##colour", ref title.Color, readOnly: readOnly);
+            if (!readOnly) modified |= DragDropColourTarget(ref title.Color);
             ImGui.TableNextColumn();
-            modified |= DrawGlowPicker("##glow", title, ref title.Glow); 
-            modified |= DragDropColourTarget(ref title.Glow);
+            modified |= DrawGlowPicker("##glow", title, ref title.Glow, readOnly: readOnly); 
+            if (!readOnly) modified |= DragDropColourTarget(ref title.Glow);
         }
 
-        if (modified) {
+        if (!readOnly && modified) {
             anyModified = true;
             title.UpdateWarning();
         }
