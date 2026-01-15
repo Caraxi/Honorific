@@ -585,7 +585,22 @@ public class ConfigWindow : Window {
                                     if (ImGui.IsItemHovered()) ImGui.SetTooltip("Any one of Enable, Disable, or Toggle");
                                     ImGui.SameLine();
                                     ImGui.TextColored(ImGuiColors.DalamudViolet, " <title>");
-                                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Any configured title on the active character.\nIf multiple titles are configured with the same text, only the first listed will be used.\n\nA titles Unique ID may also be used, which can be obtained by right clicking the enable checkbox.");
+                                    if (ImGui.IsItemHovered()) {
+                                        using (ImRaii.Tooltip()) {
+                                            ImGui.Text("Any configured title on the active character.");
+                                            ImGui.Text("If multiple titles are configured with the same text, only the first listed will be used.");
+                                            ImGui.NewLine();
+                                            ImGui.Text("A titles Unique ID may also be used, which can be obtained by right clicking the enable checkbox.");
+                                            ImGui.NewLine();
+                                            ImGui.TextColored(ImGuiColors.ParsedGold, "meta:all");
+                                            ImGui.SameLine();
+                                            ImGui.Text(" may be used to target all titles configured on active character.");
+                                            
+                                            ImGui.TextColored(ImGuiColors.ParsedGold, "meta:default");
+                                            ImGui.SameLine();
+                                            ImGui.Text(" may be used to target the 'default' title of the active character");
+                                        }
+                                    }
                                 }
                         
                                 ImGui.Spacing();
