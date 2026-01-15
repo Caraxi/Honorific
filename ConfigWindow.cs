@@ -667,15 +667,29 @@ public class ConfigWindow : Window {
                                                 c += $"{(byte)(t.Color.Value.X * 255):X2}";
                                                 c += $"{(byte)(t.Color.Value.Y * 255):X2}";
                                                 c += $"{(byte)(t.Color.Value.Z * 255):X2}";
+                                            } else if (t.GradientColourSet != null || t.Glow != null) {
+                                                c += " | #NoColour";
+                                            }
+                                            
+                                            if (t.GradientColourSet != null) {
+                                                c += $" | +{GradientSystem.GetColourSetName(t.GradientColourSet.Value)}/{t.GradientAnimationStyle??GradientAnimationStyle.Static}";
 
-                                                if (t.GradientColourSet != null) {
-                                                    c += $" | +{t.GradientColourSet}/{t.GradientAnimationStyle??GradientAnimationStyle.Static}";
-                                                } else if (t.Glow != null) {
+                                                if (t is { GradientColourSet: -1, Glow: not null, Color3: not null }) {
                                                     c += " | #";
                                                     c += $"{(byte)(t.Glow.Value.X * 255):X2}";
                                                     c += $"{(byte)(t.Glow.Value.Y * 255):X2}";
                                                     c += $"{(byte)(t.Glow.Value.Z * 255):X2}";
+                                                    c += " | #";
+                                                    c += $"{(byte)(t.Color3.Value.X * 255):X2}";
+                                                    c += $"{(byte)(t.Color3.Value.Y * 255):X2}";
+                                                    c += $"{(byte)(t.Color3.Value.Z * 255):X2}";
                                                 }
+                                                
+                                            } else if (t.Glow != null) {
+                                                c += " | #";
+                                                c += $"{(byte)(t.Glow.Value.X * 255):X2}";
+                                                c += $"{(byte)(t.Glow.Value.Y * 255):X2}";
+                                                c += $"{(byte)(t.Glow.Value.Z * 255):X2}";
                                             }
                                         }
 

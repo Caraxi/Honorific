@@ -384,7 +384,9 @@ public unsafe class Plugin : IDalamudPlugin {
                     string? titleText = null;
                     bool? prefix = null;
                     Vector3? color = null;
+                    var skipColor = false;
                     Vector3? glow = null;
+                    Vector3? col3 = null;
                     int? gradientColourSet = null;
                     GradientAnimationStyle? gradientAnimationStyle = null;
                     var silent = false;
@@ -405,7 +407,8 @@ public unsafe class Plugin : IDalamudPlugin {
 
                         if (arg.StartsWith('+')) {
                             var s = arg[1..].Split('/', 2);
-                            if (int.TryParse(s[0], out var c)) {
+                            
+                            if (GradientSystem.ParseColourSet(s[0], out var c)) {
                                 gradientColourSet = c;
                                 if (s.Length == 2 && Enum.TryParse(s[1], true, out GradientAnimationStyle style)) {
                                     gradientAnimationStyle = style;
@@ -414,12 +417,18 @@ public unsafe class Plugin : IDalamudPlugin {
                             
                             continue;
                         }
+
+                        if (color == null && (arg.Equals("#NoColor", StringComparison.InvariantCultureIgnoreCase) || arg.Equals("#NoColour", StringComparison.InvariantCultureIgnoreCase))) {
+                            skipColor = true;
+                            continue;
+                        }
+                        
                         
                         var colorArg = arg.Skip(arg.StartsWith('#') ? 1 : 0).ToArray();
                         
                         if (colorArg.Length == 6 && colorArg.All(chr => chr is >= '0' and <= '9' or >= 'a' and <= 'f')) {
 
-                            if (color != null && glow != null) {
+                            if (color != null && glow != null && col3 != null) {
                                 PluginService.Chat.PrintError($"Duplicate Option in Set: '{a}'", Name);
                                 HelpForceSet();
                                 return;
@@ -429,18 +438,22 @@ public unsafe class Plugin : IDalamudPlugin {
                             var gHex = string.Join(null, colorArg.Skip(2).Take(2));
                             var bHex = string.Join(null, colorArg.Skip(4).Take(2));
                             
-                            
                             if (byte.TryParse(rHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo, out var r) && 
                                 byte.TryParse(gHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo, out var g) && 
                                 byte.TryParse(bHex, NumberStyles.HexNumber, NumberFormatInfo.InvariantInfo,  out var b)) {
 
                                 var c = new Vector3(r / 255f, g / 255f, b / 255f);
-                                if (color == null) {
+                                if (color == null && !skipColor) {
                                     color = c;
                                     continue;
                                 }
 
-                                glow = c;
+                                if (glow == null) {
+                                    glow = c;
+                                    continue;
+                                }
+                                
+                                col3 = c;
                                 continue;
                             }
                         }
@@ -483,6 +496,7 @@ public unsafe class Plugin : IDalamudPlugin {
                     characterConfig.Override.Enabled = true;
                     characterConfig.Override.GradientColourSet = gradientColourSet;
                     characterConfig.Override.GradientAnimationStyle = gradientAnimationStyle;
+                    characterConfig.Override.Color3 = col3;
 
                     if (!silent) {
                         PluginService.Chat.Print(new SeStringBuilder().AddText($"Set {character.Name.TextValue}'s title to ").Append(characterConfig.Override.ToSeString(animate: false)).Build());

@@ -101,11 +101,6 @@ public static class GradientSystem {
         GradientBuilder.Draw();
     }
 
-    public static GradientStyle? GetStyle(int i) {
-        if (i <= 0 || i > ColourLists.Count) return null;
-        return ColourLists[i - 1];
-    }
-
     public static GradientStyle? GetStyle(int gradientColourSet, GradientAnimationStyle? gradientAnimationStyle) {
         if (gradientColourSet < 0 || gradientColourSet >= ColourSets.Count)  return null;
 
@@ -162,5 +157,28 @@ public static class GradientSystem {
             -1 => GetDualColourStyle(title.Glow, title.Color3, title.GradientAnimationStyle),
             _ => GetStyle(title.GradientColourSet.Value, title.GradientAnimationStyle)
         };
+    }
+
+    public static bool ParseColourSet(string s, out int o) {
+        if (int.TryParse(s, out o)) return true;
+
+        var nameMatch = ColourSets.FindIndex(x => x.Name.Equals(s, StringComparison.InvariantCultureIgnoreCase));
+        if (nameMatch >= 0) {
+            o =  nameMatch;
+            return true;
+        }
+
+        if (s.Equals("Two Colour Gradient", StringComparison.InvariantCultureIgnoreCase) || s.Equals("Two Color Gradient", StringComparison.InvariantCultureIgnoreCase)) {
+            o = -1;
+            return true;
+        }
+        
+        return false;
+    }
+
+    public static string GetColourSetName(int colourSet) {
+        if (colourSet == -1) return "Two Colour Gradient";
+        if (colourSet < 0 || colourSet >= ColourSets.Count) return $"{colourSet}";
+        return ColourSets[colourSet].Name;
     }
 }
