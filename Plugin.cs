@@ -734,14 +734,29 @@ public unsafe class Plugin : IDalamudPlugin {
         if (characterConfig.UseRandom) {
             var titles = characterConfig.CustomTitles.Where(t => t.Enabled && t.IsValid() && t.MatchesConditions(playerCharacter)).ToList();
 
-            if (titles.Count > 0) {
-                if (characterConfig.ActiveTitle != null && titles.Contains(characterConfig.ActiveTitle)) {
-                    title = characterConfig.ActiveTitle;
-                    return true;
-                }
+            if (titles.Count == 1) {
+                characterConfig.ActiveTitle = titles[0];
+                title = characterConfig.ActiveTitle;
+                return true;
+            }
+            if (titles.Count > 1) {
 
-                var r = new Random().Next(0, titles.Count);
-                characterConfig.ActiveTitle = titles[r];
+                if (characterConfig.ActiveTitle == null 
+                    || !titles.Contains(characterConfig.ActiveTitle)
+                    || (characterConfig.RandomOnTimer && characterConfig.ActiveTitleChanged > TimeSpan.FromMinutes(Math.Clamp(characterConfig.RandomTimerDuration, 1, 1440)))) {
+                    
+                    // Get a New Title
+                    
+                    for (var i = 0; i < 50; i++) {
+                        var r = new Random().Next(0, titles.Count);
+                        var t = titles[r];
+                        if (t ==  characterConfig.ActiveTitle) continue;
+                        characterConfig.ActiveTitle = t;
+                        title = characterConfig.ActiveTitle;
+                        return true;
+                    }
+                }
+                
                 title = characterConfig.ActiveTitle;
                 return true;
             }

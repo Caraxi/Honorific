@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -14,8 +15,22 @@ public class CharacterConfig {
 
     public bool UseRandom = false;
     public bool RandomOnZoneChange = false;
+    public bool RandomOnTimer = false;
+    public int RandomTimerDuration = 10;
 
-    [JsonIgnore] public CustomTitle? ActiveTitle;
+    [JsonIgnore]
+    public CustomTitle? ActiveTitle {
+        get => field;
+        set {
+            activeTitleChanged = DateTime.Now;
+            field = value;
+            
+        }
+    }
+    
+    [JsonIgnore] private DateTime activeTitleChanged = DateTime.Now;
+    [JsonIgnore] public TimeSpan ActiveTitleChanged => DateTime.Now - activeTitleChanged;
+    
 
     public CustomTitle? GetTitleByUniqueId(string uniqueId) {
         return CustomTitles.FirstOrDefault(t => t.GetUniqueId(this) == uniqueId) ?? (DefaultTitle.GetUniqueId(this) == uniqueId ? DefaultTitle : null);

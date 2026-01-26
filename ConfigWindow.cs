@@ -1266,6 +1266,12 @@ public class ConfigWindow : Window {
         if (characterConfig.UseRandom) {
             using (ImRaii.PushIndent()) {
                 ImGui.Checkbox("Select a new random title on zone change", ref characterConfig.RandomOnZoneChange);
+                ImGui.Checkbox("Select a new random title after", ref characterConfig.RandomOnTimer);
+                ImGui.SameLine();
+                ImGui.SetNextItemWidth(80);
+                if (ImGui.DragInt("minutes", ref characterConfig.RandomTimerDuration, 1, 1, 1440)) {
+                    characterConfig.RandomTimerDuration = Math.Clamp(characterConfig.RandomTimerDuration, 1, 1440);
+                }
             }
         }
         
