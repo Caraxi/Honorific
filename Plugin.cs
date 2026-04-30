@@ -29,7 +29,6 @@ using Lumina.Excel.Sheets;
 using Lumina.Extensions;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using ObjectKind = FFXIVClientStructs.FFXIV.Client.Game.Object.ObjectKind;
-using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 
 namespace Honorific;
 
@@ -40,14 +39,11 @@ public unsafe class Plugin : IDalamudPlugin {
     public PluginConfig Config { get; }
     
     [Signature("40 53 55 57 41 56 48 81 EC ?? ?? ?? ?? 48 8B 84 24", DetourName = nameof(UpdateNameplateDetour))]
-    private Hook<UpdateNameplateDelegate>? updateNameplateHook;    
+    private Hook<RaptureAtkModule.Delegates.UpdateBattleCharaNameplates>? updateNameplateHook;    
     
     [Signature("48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 4C 89 44 24 ?? 57 41 54 41 55 41 56 41 57 48 83 EC 20 48 8B 7C 24", DetourName = nameof(UpdateNameplateNpcDetour))]
-    private Hook<UpdateNameplateNpcDelegate>? updateNameplateHookNpc;
+    private Hook<RaptureAtkModule.Delegates.UpdateNpcNameplates>? updateNameplateHookNpc;
 
-    private delegate void* UpdateNameplateDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex);
-    private delegate void* UpdateNameplateNpcDelegate(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex);
-    
     private readonly ConfigWindow configWindow;
     private readonly WindowSystem windowSystem;
     
@@ -140,7 +136,7 @@ public unsafe class Plugin : IDalamudPlugin {
         }
     }
 
-    private void OnTerritoryChanged(ushort _) {
+    private void OnTerritoryChanged(uint _) {
         DisplayedTitles.Clear();
         foreach (var (_, characters) in Config.WorldCharacterDictionary) {
             foreach (var (_, character) in characters) {
@@ -163,7 +159,7 @@ public unsafe class Plugin : IDalamudPlugin {
         SeString? GetString(int index) {
             var atkValues = new ReadOnlySpan<AtkValue>(atkUnitBase->AtkValues, atkUnitBase->AtkValuesCount);
             if (atkValues.Length <= index) return null;
-            if (atkValues[index].Type is not (ValueType.String or ValueType.String8 or ValueType.ManagedString)) return null;
+            if (atkValues[index].Type is not (AtkValueType.String or AtkValueType.String8 or AtkValueType.ManagedString)) return null;
             return MemoryHelper.ReadSeStringNullTerminated(new nint(atkValues[index].String));
         }
 
@@ -575,7 +571,7 @@ public unsafe class Plugin : IDalamudPlugin {
         configWindow.IsOpen = !configWindow.IsOpen;
     }
     
-    public void* UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
+    public int UpdateNameplateDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, BattleChara* battleChara, int numArrayIndex, int stringArrayIndex) {
         try {
             CleanupNamePlate(namePlateInfo);
         } catch (Exception ex) {
@@ -618,7 +614,7 @@ public unsafe class Plugin : IDalamudPlugin {
         }
     }
     
-    public void* UpdateNameplateNpcDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex) {
+    public int UpdateNameplateNpcDetour(RaptureAtkModule* raptureAtkModule, RaptureAtkModule.NamePlateInfo* namePlateInfo, NumberArrayData* numArray, StringArrayData* stringArray, GameObject* gameObject, int numArrayIndex, int stringArrayIndex) {
         try {
             CleanupNamePlate(namePlateInfo, true);
         } catch (Exception ex) {
