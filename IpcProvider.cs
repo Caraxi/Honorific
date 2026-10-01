@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -93,13 +95,16 @@ public static class IpcProvider {
     }
 
     private static TitleData? lastTitleData;
+    private static RateLimit LocalTitleUpdateRateLimit = new("IPC Title Announce", TimeSpan.FromSeconds(5));
     
     internal static void ChangedLocalCharacterTitle(TitleData? title) {
         if (lastTitleData != null && lastTitleData.Equals(title)) return;
         lastTitleData = title;
-        var json = title == null || title.IsOriginal ? string.Empty : JsonConvert.SerializeObject(title);
-        PluginService.Log.Verbose($"Report Local Title Changed: {json}");
-        LocalCharacterTitleChanged?.SendMessage(json);
+        LocalTitleUpdateRateLimit.Invoke(() => {
+            var json = title == null || title.IsOriginal ? string.Empty : JsonConvert.SerializeObject(title);
+            PluginService.Log.Verbose($"Report Local Title Changed: {json}");
+            LocalCharacterTitleChanged?.SendMessage(json);
+        });
     }
 
     internal static void NotifyReady() {

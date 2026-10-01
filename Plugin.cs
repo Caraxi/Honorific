@@ -19,6 +19,7 @@ using Dalamud.Hooking;
 using Dalamud.Interface.Windowing;
 using Dalamud.Memory;
 using Dalamud.Plugin;
+using Dalamud.Utility;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -159,7 +160,7 @@ public unsafe class Plugin : IDalamudPlugin {
         SeString? GetString(int index) {
             var atkValues = new ReadOnlySpan<AtkValue>(atkUnitBase->AtkValues, atkUnitBase->AtkValuesCount);
             if (atkValues.Length <= index) return null;
-            if (atkValues[index].Type is not (AtkValueType.String or AtkValueType.String8 or AtkValueType.ManagedString)) return null;
+            if (atkValues[index].Type is not (AtkValueType.String or AtkValueType.ConstString or AtkValueType.ManagedString)) return null;
             return MemoryHelper.ReadSeStringNullTerminated(new nint(atkValues[index].String));
         }
 
@@ -602,8 +603,8 @@ public unsafe class Plugin : IDalamudPlugin {
         
         if (ModifiedNamePlates.TryGetValue((ulong)namePlateInfo, out var owner) && (force || owner != namePlateInfo->ObjectId.ObjectId)) {
             using var _ = PerformanceMonitors.Run("Cleanup");
-            PluginService.Log.Verbose($"Cleanup NamePlate: {MemoryHelper.ReadSeString(&namePlateInfo->Name).TextValue}");
-            var title = MemoryHelper.ReadSeString(&namePlateInfo->Title);
+            PluginService.Log.Verbose($"Cleanup NamePlate: {namePlateInfo->Name.AsDalamudSeString().TextValue}");
+            var title = namePlateInfo->Title.AsDalamudSeString();
             if (title.TextValue.Length > 0) {
                 title.Payloads.Insert(0, new TextPayload("《"));
                 title.Payloads.Add( new TextPayload("》"));
@@ -637,7 +638,7 @@ public unsafe class Plugin : IDalamudPlugin {
             title = GetOriginalTitle(player);
         }
         
-        var currentDisplayTitle = MemoryHelper.ReadSeString(&namePlateInfo->DisplayTitle);
+        var currentDisplayTitle = namePlateInfo->DisplayTitle.AsDalamudSeString();
         var displayTitle = title.ToSeString(title.IsOriginal || !Config.DisableQuotes, Config.ShowColoredTitles, animate: Config.EnableAnimation);
 
         if (!displayTitle.IsSameAs(currentDisplayTitle, out var encoded)) {

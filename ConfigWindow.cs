@@ -306,7 +306,7 @@ public class ConfigWindow : Window {
 
                                     var expectedTitleSeString = expectedTitle.ToSeString(expectedTitle.IsOriginal || !config.DisableQuotes, config.ShowColoredTitles, config.EnableAnimation);
 
-                                    var currentTitle = MemoryHelper.ReadSeString(&npi->DisplayTitle);
+                                    var currentTitle = npi->DisplayTitle.AsDalamudSeString();
                                     ImGui.Text($"Current Title:");
                                     ImGui.Indent();
                                     foreach(var p in currentTitle.Payloads) ImGui.Text($"{p}");
@@ -547,10 +547,10 @@ public class ConfigWindow : Window {
                                 ImGui.TableNextColumn();
                                 ImGui.Text($"{npi->ObjectId.ObjectId:X8}:{npi->ObjectId.Type:X2}");
                                 ImGui.TableNextColumn();
-                                var name = MemoryHelper.ReadSeString(&npi->Name);
+                                var name = npi->Name.AsDalamudSeString();
                                 ImGui.Text($"{name.TextValue}");
                                 ImGui.TableNextColumn();
-                                var title = MemoryHelper.ReadSeString(&npi->DisplayTitle);
+                                var title = npi->DisplayTitle.AsDalamudSeString();
                                 ImGui.Text($"{title.TextValue}");
                                 if (color) ImGui.PopStyleColor();
                                 ImGui.TableNextColumn();
